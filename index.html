@@ -79,6 +79,8 @@
     <li><strong>Reset:</strong> Restores the initial state (clears saved game).</li>
     <li><strong>Control key:</strong> Press to hide/show all tools.</li>
     <li><strong>Tab key:</strong> Opens a side tab with extra shape blocks (rectangle, square, diamond, triangle, slope). Click a shape to add it to the play area.</li>
+    <li><strong>Arrow keys:</strong> Rotate selected block left/right, ↓ resets rotation.</li>
+    <li><strong>Secret "orange" sequence:</strong> Type the letters O‑R‑A‑N‑G‑E to turn the orange into a faster gold orange with sunglasses.</li>
   </ul>
   <button id="closeHowtoBtn" style="margin-top:10px; padding:5px 10px;">Close</button>
 </div>
@@ -133,11 +135,6 @@
     isGold: false,
     speedMultiplier: 1,
     draw() {
-      // occasional color inversion (still present)
-      if (Math.random() < 0.01) {
-        const inv = invertColor(this.color);
-        this.color = inv;
-      }
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
@@ -145,7 +142,7 @@
       ctx.beginPath();
       ctx.arc(0, 0, this.r, 0, Math.PI * 2);
       ctx.fill();
-      // sunglasses (simple rectangle over eyes)
+      // sunglasses (simple rectangle over eyes) for gold orange
       if (this.isGold) {
         ctx.fillStyle = '#000';
         ctx.fillRect(-15, -12, 10, 5);
@@ -228,7 +225,7 @@
             ctx.lineTo(-this.w/2, -this.h/2);
             ctx.closePath();
             ctx.fill();
-          } else { // rect or square
+          } else {
             ctx.fillStyle = this.color;
             ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
           }
@@ -245,9 +242,58 @@
   }
   window.addEventListener('resize', resize);
   resize();
-  // Load saved state if exists
+
+  // ----- Persistent State -----
+  function saveGame() {
+    const state = {
+      orange: {
+        x: orange.x,
+        y: orange.y,
+        vx: orange.vx,
+        vy: orange.vy,
+        angle: orange.angle,
+        angularVel: orange.angularVel,
+        isGold: orange.isGold,
+        speedMultiplier: orange.speedMultiplier,
+        name: orange.name,
+        color: orange.color
+      }
+      // could extend to blocks/slices if needed
+    };
+    localStorage.setItem('orangeGameState', JSON.stringify(state));
+  }
+  function loadGame() {
+    const saved = localStorage.getItem('orangeGameState');
+    if (saved) {
+      try {
+        const state = JSON.parse(saved);
+        if (state.orange) {
+          Object.assign(orange, state.orange);
+        }
+      } catch(e) { console.error('Failed to load game state', e); }
+    }
+  }
+  function resetGame() {
+    localStorage.removeItem('orangeGameState');
+    location.reload();
+  }
+
+  // ----- Gold Orange Logic -----
+  function makeGold() {
+    orange.isGold = true;
+    orange.color = '#FFD700'; // gold
+    orange.name = 'Gold';
+    orange.speedMultiplier = 2; // faster
+    // Ensure sunglasses are drawn via isGold flag (handled in draw)
+  }
+  // 1% chance on initial load (if not already loaded from saved state)
+  if (!localStorage.getItem('orangeGameState')) {
+    if (Math.random() < 0.01) makeGold();
+  }
+
+  // Load saved state after possible gold assignment
   loadGame();
-  if (blocks.length === 0) createBlocks();
+
   // UI button handling
   document.getElementById('swordBtn').onclick = () => { UI.mode = UI.mode === 'sword' ? null : 'sword'; };
   document.getElementById('racketBtn').onclick = () => { UI.mode = UI.mode === 'racket' ? null : 'racket'; };
@@ -327,7 +373,13 @@
         selectedBlock.angle = 0; // reset rotation
       }
     }
+    // Secret sequence detection
+    if (e.key.length === 1) {
+      secretSeq = (secretSeq + e.key.toLowerCase()).slice(-6);
+      if (secretSeq === 'orange') makeGold();
+    }
   });
+  let secretSeq = '';
   document.getElementById('shapeTab').addEventListener('click', e => {
     if (e.target.tagName !== 'BUTTON') return;
     const shape = e.target.getAttribute('data-shape');
@@ -634,55 +686,37 @@
   function drawBlackHole() {
     if (!blackHole.enabled) return;
     ctx.save();
-    ctx.beginPath();
-    ctx.arc(blackHole.x, blackHole.y, blackHole.radius, 0, Math.PI*2);
+    ctx.translate(blackHole.x, blackHole.y);
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.arc(0,0,blackHole.radius,0,Math.PI*2);
     ctx.fill();
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 2;
-    ctx.stroke();
     ctx.restore();
   }
   function draw() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
     if (bgImage) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
     cup.draw();
-    drawBlackHole();
-    blocks.forEach(b => b.draw());
-    slices.forEach(s => s.draw());
     orange.draw();
-    requestAnimationFrame(draw);
+    slices.forEach(s=>s.draw());
+    blocks.forEach(b=>b.draw());
+    drawBlackHole();
+    // UI elements like phraseDiv could be shown here if needed
   }
-  // Utility functions
-  function invertColor(hex) {
-    // simple invert
-    const c = parseInt(hex.slice(1),16);
-    const r = 255 - ((c>>16)&0xFF);
-    const g = 255 - ((c>>8)&0xFF);
-    const b = 255 - (c&0xFF);
-    return `#${((1<<24)+ (r<<16) + (g<<8) + b).toString(16).slice(1)}`;
-  }
-  function resetGame() {
-    // Clear local storage and reload
-    localStorage.clear();
-    location.reload();
-  }
-  function loadGame() {
-    // Placeholder for future persistence
-    // Currently no saved state implementation
-  }
-  function saveGame() {
-    // Placeholder for future persistence
-  }
-  // Main loop
-  draw();
-  // Update loop
-  setInterval(() => {
-    updateOrange();
+  function loop() {
     updateSlices();
+    updateOrange();
     updateBlocks();
     updateBlackHole();
-  }, 16);
+    draw();
+    saveGame();
+    requestAnimationFrame(loop);
+  }
+  // Initial setup
+  if (blocks.length === 0) createBlocks();
+  loop();
+  // Save when leaving page
+  window.addEventListener('beforeunload', saveGame);
 </script>
 </body>
 </html>
