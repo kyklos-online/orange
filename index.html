@@ -4,12 +4,13 @@
 <meta charset="UTF-8" />
 <title>Orange Game</title>
 <style>
-  body { margin:0; overflow:hidden; font-family:sans-serif; background:#f0f0f0; }
+  body { margin:0; overflow:hidden; font-family:sans-serif; }
   #ui {
     position:absolute; top:10px; left:10px; background:#fff; padding:10px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3);
   }
-  #ui button { margin:2px; }
+  #ui button, #ui input { margin:2px; }
   #nameInput { width:120px; }
+  #bgInput { width:150px; }
 </style>
 </head>
 <body>
@@ -24,13 +25,26 @@
   <button id="fanBtn">Fan (Gust)</button>
   <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
+  <br/>
+  <input type="file" id="bgInput" accept="image/*" />
 </div>
 <canvas id="gameCanvas"></canvas>
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const UI = { mode: null, loop: false };
-  const fan = { enabled: false, dirIndex: 0, dirs: ['left','right','down','up'], size: 60 };
+  const fan = {
+    enabled: false,
+    dirIndex: 0,
+    dirs: ['left','right','down','up'],
+    size: 60,
+    x: 80,
+    y: 80,
+    dragging: false,
+    offsetX: 0,
+    offsetY: 0
+  };
+  let bgImage = null; // Holds uploaded background image
 
   const orange = {
     x: 200,
@@ -93,7 +107,7 @@
     w: 120,
     h: 30,
     draw() {
-      ctx.fillStyle = '#8B4513';
+      ctx.fillStyle = '#8B4514';
       ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
     }
   };
@@ -146,6 +160,18 @@
   };
   document.getElementById('resetBtn').onclick = resetGame;
 
+  // Background image upload handling
+  document.getElementById('bgInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      bgImage = new Image();
+      bgImage.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
   // Name input handling
   document.getElementById('nameInput').addEventListener('input', e => {
     orange.name = e.target.value || 'Orange';
@@ -155,10 +181,24 @@
   let mouse = {x:0, y:0, down:false};
   let draggedObj = null; // orange or slice
   let currentStroke = null; // for drawing on orange
+
   canvas.addEventListener('mousedown', e => {
     mouse.down = true;
     mouse.x = e.clientX;
     mouse.y = e.clientY;
+
+    // Check fan dragging first
+    const fanLeft = fan.x - fan.size/2;
+    const fanTop = fan.y - fan.size/4;
+    const fanRight = fan.x + fan.size/2;
+    const fanBottom = fan.y + fan.size/4;
+    if (mouse.x >= fanLeft && mouse.x <= fanRight && mouse.y >= fanTop && mouse.y <= fanBottom) {
+      fan.dragging = true;
+      fan.offsetX = mouse.x - fan.x;
+      fan.offsetY = mouse.y - fan.y;
+      return; // do not process other tools while dragging fan
+    }
+
     if (UI.mode === 'hand') {
       for (let i = slices.length-1; i >=0; i--) {
         const s = slices[i];
@@ -175,10 +215,18 @@
       }
     }
   });
+
   canvas.addEventListener('mousemove', e => {
     const prevX = mouse.x, prevY = mouse.y;
     mouse.x = e.clientX;
     mouse.y = e.clientY;
+
+    // Fan dragging
+    if (fan.dragging) {
+      fan.x = mouse.x - fan.offsetX;
+      fan.y = mouse.y - fan.offsetY;
+    }
+
     if (draggedObj && draggedObj.dragging) {
       const dx = mouse.x - prevX;
       const dy = mouse.y - prevY;
@@ -195,12 +243,16 @@
       currentStroke.push(local);
     }
   });
+
   canvas.addEventListener('mouseup', e => {
     mouse.down = false;
+    // End fan drag
+    if (fan.dragging) { fan.dragging = false; }
+
     if (draggedObj) {
       draggedObj.dragging = false;
       draggedObj = null;
-      return; // skip tool actions when dragging
+      return; // skip tool actions when we were dragging
     }
     if (UI.mode === 'draw') {
       currentStroke = null;
@@ -212,7 +264,6 @@
       createSlices(orange.x, orange.y);
       orange.visible = false;
       fan.enabled = true; // enable fan after slicing
-      // assign random name to one slice
       if (slices.length) {
         const randIdx = Math.floor(Math.random() * slices.length);
         slices[randIdx].name = orange.name;
@@ -329,7 +380,7 @@
 
   function updateBlocks() {
     for (const b of blocks) {
-      // static blocks – no movement
+      // static blocks – no movement but push orange/slices away
       if (orange.visible) {
         const dx = Math.abs(b.x - orange.x);
         const dy = Math.abs(b.y - orange.y);
@@ -369,8 +420,6 @@
 
   function drawFan() {
     if (!fan.enabled) return;
-    const centerX = 80;
-    const centerY = 80;
     const size = fan.size;
     const dir = fan.dirs[fan.dirIndex];
     let angle = 0;
@@ -379,7 +428,7 @@
     else if (dir === 'up') angle = -Math.PI/2;
     else if (dir === 'down') angle = Math.PI/2;
     ctx.save();
-    ctx.translate(centerX, centerY);
+    ctx.translate(fan.x, fan.y);
     ctx.rotate(angle);
     ctx.fillStyle = '#00BFFF';
     ctx.fillRect(-size/2, -size/4, size, size/2);
@@ -388,6 +437,10 @@
 
   function draw() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
+    // draw uploaded background if present
+    if (bgImage) {
+      ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+    }
     cup.draw();
     drawFan();
     if (orange.visible) orange.draw();
@@ -412,6 +465,7 @@
     slices.length = 0;
     UI.mode = null; UI.loop = false;
     fan.enabled = false; fan.dirIndex = 0;
+    bgImage = null;
     blocks.length = 0; createBlocks();
   }
 
