@@ -22,7 +22,6 @@
   <button id="handBtn">Hand (Pick up)</button>
   <button id="deleteBtn">Delete (Remove Block)</button>
   <button id="drawBtn">Draw (On Orange)</button>
-  <button id="fanBtn">Fan (Gust)</button>
   <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
   <br/>
@@ -33,17 +32,6 @@
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const UI = { mode: null, loop: false };
-  const fan = {
-    enabled: false,
-    dirIndex: 0,
-    dirs: ['left','right','down','up'],
-    size: 60,
-    x: 80,
-    y: 80,
-    dragging: false,
-    offsetX: 0,
-    offsetY: 0
-  };
   let bgImage = null; // Holds uploaded background image
 
   const orange = {
@@ -132,6 +120,34 @@
     }
   }
 
+  // Black hole definition (replaces fan)
+  const blackHole = {
+    x: 300,
+    y: 300,
+    radius: 20, // visual radius
+    pullRadius: 200, // influence distance
+    strength: 0.6, // pull magnitude factor
+    dragging: false,
+    offsetX: 0,
+    offsetY: 0,
+    draw() {
+      // draw a dark circle with a subtle glow
+      const gradient = ctx.createRadialGradient(this.x, this.y, this.radius, this.x, this.y, this.radius * 3);
+      gradient.addColorStop(0, '#000');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save();
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  };
+
   // Resize canvas
   function resize() {
     canvas.width = window.innerWidth;
@@ -149,11 +165,6 @@
   document.getElementById('handBtn').onclick = () => { UI.mode = UI.mode === 'hand' ? null : 'hand'; };
   document.getElementById('deleteBtn').onclick = () => { UI.mode = UI.mode === 'delete' ? null : 'delete'; };
   document.getElementById('drawBtn').onclick = () => { UI.mode = UI.mode === 'draw' ? null : 'draw'; };
-  document.getElementById('fanBtn').onclick = () => {
-    if (!fan.enabled) return; // fan only works after a slice event
-    fan.dirIndex = (fan.dirIndex + 1) % fan.dirs.length;
-    applyFanGust();
-  };
   document.getElementById('loopBtn').onclick = () => {
     UI.loop = !UI.loop;
     if (!UI.loop) { orange.vx = 0; }
@@ -187,16 +198,13 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
 
-    // Check fan dragging first
-    const fanLeft = fan.x - fan.size/2;
-    const fanTop = fan.y - fan.size/4;
-    const fanRight = fan.x + fan.size/2;
-    const fanBottom = fan.y + fan.size/4;
-    if (mouse.x >= fanLeft && mouse.x <= fanRight && mouse.y >= fanTop && mouse.y <= fanBottom) {
-      fan.dragging = true;
-      fan.offsetX = mouse.x - fan.x;
-      fan.offsetY = mouse.y - fan.y;
-      return; // do not process other tools while dragging fan
+    // Check black hole dragging first
+    const bhDist = Math.hypot(mouse.x - blackHole.x, mouse.y - blackHole.y);
+    if (bhDist <= blackHole.radius) {
+      blackHole.dragging = true;
+      blackHole.offsetX = mouse.x - blackHole.x;
+      blackHole.offsetY = mouse.y - blackHole.y;
+      return; // don't process other tools while dragging black hole
     }
 
     if (UI.mode === 'hand') {
@@ -221,10 +229,10 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
 
-    // Fan dragging
-    if (fan.dragging) {
-      fan.x = mouse.x - fan.offsetX;
-      fan.y = mouse.y - fan.offsetY;
+    // Black hole dragging
+    if (blackHole.dragging) {
+      blackHole.x = mouse.x - blackHole.offsetX;
+      blackHole.y = mouse.y - blackHole.offsetY;
     }
 
     if (draggedObj && draggedObj.dragging) {
@@ -246,8 +254,8 @@
 
   canvas.addEventListener('mouseup', e => {
     mouse.down = false;
-    // End fan drag
-    if (fan.dragging) { fan.dragging = false; }
+    // End black hole drag
+    if (blackHole.dragging) { blackHole.dragging = false; }
 
     if (draggedObj) {
       draggedObj.dragging = false;
@@ -263,7 +271,6 @@
     if (UI.mode === 'sword' && orange.visible && distToOrange <= orange.r) {
       createSlices(orange.x, orange.y);
       orange.visible = false;
-      fan.enabled = true; // enable fan after slicing
       if (slices.length) {
         const randIdx = Math.floor(Math.random() * slices.length);
         slices[randIdx].name = orange.name;
@@ -404,35 +411,31 @@
     }
   }
 
-  function applyFanGust() {
-    const dir = fan.dirs[fan.dirIndex];
-    const magnitude = 3;
-    let vx = 0, vy = 0;
-    if (dir === 'left') vx = -magnitude;
-    else if (dir === 'right') vx = magnitude;
-    else if (dir === 'up') vy = -magnitude;
-    else if (dir === 'down') vy = magnitude;
-    // Apply to all slices
-    slices.forEach(s => { s.vx += vx; s.vy += vy; });
-    // Also affect whole orange if still visible
-    if (orange.visible) { orange.vx += vx; orange.vy += vy; }
-  }
-
-  function drawFan() {
-    if (!fan.enabled) return;
-    const size = fan.size;
-    const dir = fan.dirs[fan.dirIndex];
-    let angle = 0;
-    if (dir === 'left') angle = Math.PI;
-    else if (dir === 'right') angle = 0;
-    else if (dir === 'up') angle = -Math.PI/2;
-    else if (dir === 'down') angle = Math.PI/2;
-    ctx.save();
-    ctx.translate(fan.x, fan.y);
-    ctx.rotate(angle);
-    ctx.fillStyle = '#00BFFF';
-    ctx.fillRect(-size/2, -size/4, size, size/2);
-    ctx.restore();
+  function applyBlackHolePull() {
+    // Pull on orange
+    if (orange.visible && !orange.dragging) {
+      const dx = blackHole.x - orange.x;
+      const dy = blackHole.y - orange.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < blackHole.pullRadius && dist > 0) {
+        const pullFactor = (blackHole.pullRadius - dist) / blackHole.pullRadius; // stronger when closer
+        orange.vx += (dx / dist) * blackHole.strength * pullFactor;
+        orange.vy += (dy / dist) * blackHole.strength * pullFactor;
+      }
+    }
+    // Pull on slices
+    for (const s of slices) {
+      if (!s.dragging) {
+        const dx = blackHole.x - s.x;
+        const dy = blackHole.y - s.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < blackHole.pullRadius && dist > 0) {
+          const pullFactor = (blackHole.pullRadius - dist) / blackHole.pullRadius;
+          s.vx += (dx / dist) * blackHole.strength * pullFactor;
+          s.vy += (dy / dist) * blackHole.strength * pullFactor;
+        }
+      }
+    }
   }
 
   function draw() {
@@ -442,7 +445,7 @@
       ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
     }
     cup.draw();
-    drawFan();
+    blackHole.draw();
     if (orange.visible) orange.draw();
     slices.forEach(s => s.draw());
     blocks.forEach(b => b.draw());
@@ -453,6 +456,7 @@
     updateSlices();
     updateOrange();
     updateBlocks();
+    applyBlackHolePull();
     requestAnimationFrame(loop);
   }
 
@@ -464,9 +468,10 @@
     orange.strokes = [];
     slices.length = 0;
     UI.mode = null; UI.loop = false;
-    fan.enabled = false; fan.dirIndex = 0;
     bgImage = null;
     blocks.length = 0; createBlocks();
+    // Reset black hole position
+    blackHole.x = 300; blackHole.y = 300; blackHole.dragging = false;
   }
 
   // start loops
