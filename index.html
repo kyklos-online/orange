@@ -18,8 +18,10 @@
   <br/>
   <button id="swordBtn">Sword (Slice)</button>
   <button id="racketBtn">Tennis Racket (Smack)</button>
+  <button id="powerRacketBtn">Power Racket (Smash)</button>
   <button id="handBtn">Hand (Pick up)</button>
   <button id="deleteBtn">Delete (Remove Block)</button>
+  <button id="fanBtn">Fan (Left)</button>
   <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
 </div>
@@ -27,7 +29,7 @@
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const UI = { mode: null, loop: false };
+  const UI = { mode: null, loop: false, fanDirectionIndex: 0, fanDirections: ['Left','Right','Down','Up'] };
 
   const orange = {
     x: 200,
@@ -89,9 +91,10 @@
         y: Math.random() * (canvas.height - size) + size/2,
         w: size,
         h: size,
-        vx: 0, // blocks no longer move on their own
+        vx: 0,
         vy: 0,
         color: '#4682B4',
+        dragging: false,
         draw() {
           ctx.fillStyle = this.color;
           ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
@@ -114,16 +117,32 @@
   // UI button handling
   document.getElementById('swordBtn').onclick = () => { UI.mode = UI.mode === 'sword' ? null : 'sword'; };
   document.getElementById('racketBtn').onclick = () => { UI.mode = UI.mode === 'racket' ? null : 'racket'; };
+  document.getElementById('powerRacketBtn').onclick = () => { UI.mode = UI.mode === 'powerRacket' ? null : 'powerRacket'; };
   document.getElementById('handBtn').onclick = () => { UI.mode = UI.mode === 'hand' ? null : 'hand'; };
   document.getElementById('deleteBtn').onclick = () => { UI.mode = UI.mode === 'delete' ? null : 'delete'; };
   document.getElementById('loopBtn').onclick = () => {
     UI.loop = !UI.loop;
     if (!UI.loop) {
-      // stop automatic side‑to‑side motion when loop is disabled
       orange.vx = 0;
     }
   };
   document.getElementById('resetBtn').onclick = resetGame;
+  document.getElementById('fanBtn').onclick = () => {
+    UI.fanDirectionIndex = (UI.fanDirectionIndex + 1) % UI.fanDirections.length;
+    const dir = UI.fanDirections[UI.fanDirectionIndex];
+    document.getElementById('fanBtn').textContent = `Fan (${dir})`;
+    // Apply fan impulse to all slices
+    const impulse = 5;
+    let dx=0, dy=0;
+    if (dir === 'Left') { dx = -1; }
+    else if (dir === 'Right') { dx = 1; }
+    else if (dir === 'Down') { dy = 1; }
+    else if (dir === 'Up') { dy = -1; }
+    slices.forEach(s => {
+      s.vx += dx * impulse;
+      s.vy += dy * impulse;
+    });
+  };
 
   // Name input handling
   document.getElementById('nameInput').addEventListener('input', e => {
@@ -132,17 +151,29 @@
 
   // Mouse interaction
   let mouse = {x:0, y:0, down:false};
-  let draggedObj = null; // orange or slice
+  let draggedObj = null; // orange, slice, or block
   canvas.addEventListener('mousedown', e => {
     mouse.down = true;
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     if (UI.mode === 'hand') {
+      // check slices
       for (let i = slices.length-1; i >=0; i--) {
         const s = slices[i];
         const d = Math.hypot(mouse.x - s.x, mouse.y - s.y);
         if (d <= s.r) { draggedObj = s; s.dragging = true; break; }
       }
+      // check blocks if not already dragging a slice
+      if (!draggedObj) {
+        for (let i = blocks.length-1; i >=0; i--) {
+          const b = blocks[i];
+          if (mouse.x > b.x - b.w/2 && mouse.x < b.x + b.w/2 &&
+              mouse.y > b.y - b.h/2 && mouse.y < b.y + b.h/2) {
+            draggedObj = b; b.dragging = true; break;
+          }
+        }
+      }
+      // check orange
       if (!draggedObj && orange.visible !== false) {
         const d = Math.hypot(mouse.x - orange.x, mouse.y - orange.y);
         if (d <= orange.r) { draggedObj = orange; orange.dragging = true; }
@@ -160,9 +191,9 @@
       draggedObj.y += dy;
       if (draggedObj === orange) {
         orange.angle += Math.atan2(dy, dx);
-      } else {
-        draggedObj.vx = 0;
-        draggedObj.vy = 0;
+      } else if (draggedObj !== orange) {
+        // slices or blocks: stop any residual velocity while dragging
+        if (draggedObj.vx !== undefined) { draggedObj.vx = 0; draggedObj.vy = 0; }
       }
     }
   });
@@ -171,7 +202,7 @@
     if (draggedObj) {
       draggedObj.dragging = false;
       draggedObj = null;
-      return; // skip tool actions
+      return; // skip tool actions when we just finished dragging
     }
     const clickX = e.clientX;
     const clickY = e.clientY;
@@ -184,7 +215,7 @@
         slices[randIdx].name = orange.name;
       }
     } else if (UI.mode === 'racket') {
-      // Impulse to slices
+      // Impulse to slices (lighter)
       slices.forEach(s => {
         const d = Math.hypot(s.x - clickX, s.y - clickY);
         if (d < 100) {
@@ -201,6 +232,24 @@
         orange.vx += Math.cos(angle) * impulse;
         orange.vy += Math.sin(angle) * impulse;
         orange.angularVel += (Math.random() - 0.5) * 0.2;
+      }
+    } else if (UI.mode === 'powerRacket') {
+      // Stronger impulse for orange and slices
+      slices.forEach(s => {
+        const d = Math.hypot(s.x - clickX, s.y - clickY);
+        if (d < 150) {
+          const angle = Math.atan2(s.y - clickY, s.x - clickX);
+          const impulse = 12; // powerful
+          s.vx += Math.cos(angle) * impulse;
+          s.vy += Math.sin(angle) * impulse;
+        }
+      });
+      if (orange.visible !== false && distToOrange < 150) {
+        const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
+        const impulse = 12 / orange.mass;
+        orange.vx += Math.cos(angle) * impulse;
+        orange.vy += Math.sin(angle) * impulse;
+        orange.angularVel += (Math.random() - 0.5) * 0.4;
       }
     } else if (UI.mode === 'delete') {
       // Remove clicked block
@@ -272,6 +321,19 @@
         if (s.y + s.r > canvas.height) { s.y = canvas.height - s.r; s.vy *= -0.8; }
       }
     }
+    // Looping for small oranges (slices) when UI.loop is active
+    if (UI.loop) {
+      for (const s of slices) {
+        if (!s.dragging) {
+          s.vx = 2; // constant rightward speed
+          s.x += s.vx;
+          // wrap around horizontally
+          if (s.x - s.r > canvas.width) {
+            s.x = -s.r;
+          }
+        }
+      }
+    }
   }
 
   function updateOrange() {
@@ -297,15 +359,14 @@
 
   function updateBlocks() {
     for (const b of blocks) {
-      // Blocks are static; no position updates
-      // Collision with orange (push orange a bit)
+      // static blocks; collision with orange (push orange a bit)
       if (orange.visible !== false) {
         const distX = Math.abs(b.x - orange.x);
         const distY = Math.abs(b.y - orange.y);
         const distance = Math.hypot(distX, distY);
         if (distance < orange.r + Math.max(b.w, b.h)/2) {
           const angle = Math.atan2(orange.y - b.y, orange.x - b.x);
-          const push = 2; // mild push
+          const push = 2;
           orange.vx += Math.cos(angle) * push;
           orange.vy += Math.sin(angle) * push;
         }
@@ -346,6 +407,8 @@
     orange.name = document.getElementById('nameInput').value || 'Orange';
     slices.length = 0;
     UI.mode = null; UI.loop = false;
+    UI.fanDirectionIndex = 0;
+    document.getElementById('fanBtn').textContent = `Fan (${UI.fanDirections[0]})`;
     blocks.length = 0; createBlocks();
   }
 
