@@ -25,6 +25,11 @@
   #howtoOverlay {
     position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:none; z-index:1000;
   }
+  #shapeTab {
+    position:fixed; top:0; right:0; width:200px; height:100%; background:#f0f0f0; border-left:1px solid #ccc; padding:10px; box-sizing:border-box; display:none; z-index:1002;
+  }
+  #shapeTab button { width:100%; margin-bottom:5px; }
+  #phraseDiv { position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.8); padding:5px 10px; border-radius:4px; display:none; font-weight:bold; }
 </style>
 </head>
 <body>
@@ -53,7 +58,7 @@
 <canvas id="gameCanvas"></canvas>
 
 <div id="startScreen">
-  <div style="margin-bottom:20px; font-size:32px; color:#FFA500;">Press Control to hide tools</div>
+  <div style="margin-bottom:20px; font-size:32px; color:#FFA500;">Welcome to Orange Game</div>
   <button id="startBtn" style="padding:10px 20px; font-size:18px;">Start Game</button>
 </div>
 
@@ -70,9 +75,21 @@
     <li><strong>Loop:</strong> Makes the orange (and slices) move continuously side‑to‑side.</li>
     <li><strong>Reset:</strong> Restores the initial state.</li>
     <li><strong>Control key:</strong> Press to hide/show all tools.</li>
+    <li><strong>Tab key:</strong> Opens a side tab with extra shape blocks (rectangle, square, diamond, triangle, slope). Click a shape to add it to the play area.</li>
   </ul>
   <button id="closeHowtoBtn" style="margin-top:10px; padding:5px 10px;">Close</button>
 </div>
+
+<div id="shapeTab">
+  <h3>Shapes</h3>
+  <button data-shape="rect">Rectangle</button>
+  <button data-shape="square">Square</button>
+  <button data-shape="diamond">Diamond</button>
+  <button data-shape="triangle">Triangle</button>
+  <button data-shape="slope">Slope</button>
+</div>
+
+<div id="phraseDiv"></div>
 
 <script>
   const canvas = document.getElementById('gameCanvas');
@@ -82,8 +99,8 @@
     enabled: false,
     x: 300,
     y: 300,
-    radius: 80,
-    strength: 0.02,
+    radius: 40, // smaller
+    strength: 0.01, // weaker
     dragging: false,
     offsetX: 0,
     offsetY: 0
@@ -111,7 +128,13 @@
     visible: true,
     mass: 5,
     strokes: [],
+    originalColor: '#FFA500',
     draw() {
+      // 1/100 chance to invert colors each frame
+      if (Math.random() < 0.01) {
+        const inv = invertColor(this.color);
+        this.color = inv;
+      }
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
@@ -170,10 +193,36 @@
         vx: 0,
         vy: 0,
         color: '#4682B4',
+        type: 'rect',
         dragging: false,
         draw() {
-          ctx.fillStyle = this.color;
-          ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
+          ctx.save();
+          ctx.translate(this.x, this.y);
+          if (this.type === 'diamond') {
+            ctx.rotate(Math.PI/4);
+            ctx.fillStyle = this.color;
+            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+          } else if (this.type === 'triangle') {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.moveTo(0, -this.h/2);
+            ctx.lineTo(-this.w/2, this.h/2);
+            ctx.lineTo(this.w/2, this.h/2);
+            ctx.closePath();
+            ctx.fill();
+          } else if (this.type === 'slope') {
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.moveTo(-this.w/2, this.h/2);
+            ctx.lineTo(this.w/2, this.h/2);
+            ctx.lineTo(-this.w/2, -this.h/2);
+            ctx.closePath();
+            ctx.fill();
+          } else { // rect or square
+            ctx.fillStyle = this.color;
+            ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+          }
+          ctx.restore();
         }
       });
     }
@@ -224,6 +273,7 @@
     const color = sel.value;
     const name = sel.options[sel.selectedIndex].getAttribute('data-name');
     orange.color = color;
+    orange.originalColor = color;
     orange.name = name;
     document.getElementById('nameInput').value = name;
   });
@@ -233,6 +283,69 @@
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('ui').style.display = 'block';
   };
+
+  // Shape tab handling (Tab key)
+  let shapeTabVisible = false;
+  window.addEventListener('keydown', e => {
+    if (e.key === 'Control' && !e.repeat) {
+      uiHidden = !uiHidden;
+      document.getElementById('ui').style.display = uiHidden ? 'none' : 'block';
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      shapeTabVisible = !shapeTabVisible;
+      document.getElementById('shapeTab').style.display = shapeTabVisible ? 'block' : 'none';
+    }
+  });
+
+  document.getElementById('shapeTab').addEventListener('click', e => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const shape = e.target.getAttribute('data-shape');
+    const size = 50;
+    const newBlock = {
+      x: canvas.width/2,
+      y: canvas.height/2,
+      w: size,
+      h: size,
+      vx: 0,
+      vy: 0,
+      color: '#A0522D',
+      type: shape === 'square' ? 'rect' : shape,
+      dragging: false,
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        if (this.type === 'diamond') {
+          ctx.rotate(Math.PI/4);
+          ctx.fillStyle = this.color;
+          ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+        } else if (this.type === 'triangle') {
+          ctx.fillStyle = this.color;
+          ctx.beginPath();
+          ctx.moveTo(0, -this.h/2);
+          ctx.lineTo(-this.w/2, this.h/2);
+          ctx.lineTo(this.w/2, this.h/2);
+          ctx.closePath();
+          ctx.fill();
+        } else if (this.type === 'slope') {
+          ctx.fillStyle = this.color;
+          ctx.beginPath();
+          ctx.moveTo(-this.w/2, this.h/2);
+          ctx.lineTo(this.w/2, this.h/2);
+          ctx.lineTo(-this.w/2, -this.h/2);
+          ctx.closePath();
+          ctx.fill();
+        } else { // rect
+          ctx.fillStyle = this.color;
+          ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+        }
+        ctx.restore();
+      }
+    };
+    blocks.push(newBlock);
+    shapeTabVisible = false;
+    document.getElementById('shapeTab').style.display = 'none';
+  });
 
   // Mouse interaction
   let mouse = {x:0, y:0, down:false};
@@ -486,7 +599,6 @@
       s.vx += dx * blackHole.strength;
       s.vy += dy * blackHole.strength;
     });
-    // also affect blocks (treated as fruit-like objects)
     blocks.forEach(b => {
       const dx = blackHole.x - b.x;
       const dy = blackHole.y - b.y;
@@ -534,11 +646,40 @@
     orange.name = document.getElementById('nameInput').value || 'Orange';
     orange.strokes = [];
     orange.color = document.getElementById('colorSelect').value;
+    orange.originalColor = orange.color;
     slices.length = 0;
     UI.mode = null; UI.loop = false;
     blackHole.enabled = false;
     bgImage = null;
     blocks.length = 0; createBlocks();
+  }
+
+  // Random orange jokes/phrases
+  const phrases = [
+    "Why did the orange stop? Because it ran out of juice!",
+    "Orange you glad you’re playing this game?",
+    "Peel the love!",
+    "Citrus me out!",
+    "When life gives you lemons, trade them for oranges!"
+  ];
+  function showRandomPhrase() {
+    const phrase = phrases[Math.floor(Math.random()*phrases.length)];
+    const div = document.getElementById('phraseDiv');
+    div.textContent = phrase;
+    div.style.display = 'block';
+    setTimeout(()=>{ div.style.display = 'none'; }, 3000);
+  }
+  setInterval(()=>{ if (Math.random()<0.01) showRandomPhrase(); }, 1000);
+
+  // Utility: invert hex color
+  function invertColor(hex) {
+    // Remove # if present
+    hex = hex.replace('#','');
+    if (hex.length===3) hex = hex.split('').map(c=>c+c).join('');
+    const r = (255 - parseInt(hex.substr(0,2),16)).toString(16).padStart(2,'0');
+    const g = (255 - parseInt(hex.substr(2,2),16)).toString(16).padStart(2,'0');
+    const b = (255 - parseInt(hex.substr(4,2),16)).toString(16).padStart(2,'0');
+    return '#'+r+g+b;
   }
 
   // Hide/Show UI with Control key toggle
