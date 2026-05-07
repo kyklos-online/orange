@@ -182,7 +182,7 @@
   // ---------- Persistent State ----------
   function saveGame(){
     const state={
-      orange:{x:orange.x,y:orange.y,vx:orange.vx,vy:orange.vy,angle:orange.angle,angularVel:orange.angularVel,isGold:orange.isGold,isDiamond:orange.isDiamond,speedMultiplier:orange.speedMultiplier,name:orange.name,color:orange.color,r:orange.r,hasNecklace:orange.hasNecklace,superspeed:orange.superspeed,supersize:orange.supersize},
+      orange:{x:orange.x,y:orange.y,vx:orange.vx,vy:orange.vy,angle:orange.angle,angularVel:orange.angularVel,isGold:orange.isGold,isDiamond:orange.isDiamond,speedMultiplier:orange.speedMultiplier,name:orange.name,color:orange.color,r:orange.r,hasNecklace:orange.hasNecklace,superspeed:orange.superspeed,supersize:orange.supersize,visible:orange.visible},
       hoop:{active:hoop.active,points:hoop.points},
       slices:slices.map(s=>({x:s.x,y:s.y,r:s.r,vx:s.vx,vy:s.vy,angle:s.angle,angularVel:s.angularVel,color:s.color,isDiamond:s.isDiamond})),
       blocks:blocks.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,angle:b.angle,type:b.type,color:b.color}))
@@ -200,8 +200,38 @@
       }catch(e){console.error('Failed to load game state',e);}    }
   }
   function resetGame(){
+    // Clear persistent storage
     localStorage.removeItem('orangeGameState');
-    location.reload();
+    // Reset points and unlocks
+    hoop.points=0;
+    document.getElementById('pointsDiv').textContent='Points: 0';
+    orange.hasNecklace=false;
+    orange.superspeed=false;
+    orange.supersize=false;
+    speedBtn.disabled=true;
+    sizeBtn.disabled=true;
+    // Reset orange to default state and position at canvas centre
+    orange.x=canvas.width/2;
+    orange.y=canvas.height/2;
+    orange.vx=0; orange.vy=0; orange.angularVel=0;
+    orange.angle=0;
+    orange.visible=true;
+    orange.color=orange.originalColor;
+    orange.name='Orange';
+    orange.isGold=false; orange.isDiamond=false;
+    orange.speedMultiplier=1;
+    orange.r=orange.baseR;
+    // Clear dynamic objects
+    slices.length=0;
+    blocks.length=0;
+    // Reset hoop status
+    hoop.active=false;
+    document.getElementById('hoopToggleBtn').textContent='Hoop: Off';
+    // Reset UI selections
+    document.getElementById('colorSelect').value=orange.originalColor;
+    document.getElementById('nameInput').value='';
+    // Save cleared state
+    saveGame();
   }
   // ---------- Gold & Diamond Logic ----------
   function makeGold(){
@@ -300,7 +330,7 @@
         for(let i=slices.length-1;i>=0;i--){const s=slices[i]; if(Math.hypot(mouse.x-s.x,mouse.y-s.y)<=s.r){draggedObj=s; s.dragging=true; selectedBlock=null; break;}}
       }
       if(!draggedObj && orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){draggedObj=orange; orange.dragging=true; selectedBlock=null;}
-    } else if(UI.mode==='draw' && orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){const local={x:mouse.x-orange.x,y:mouse.y-orange.y}; currentStroke=[local]; orange.strokes.push(currentStroke);}
+    } else if(UI.mode==='draw' && orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){const local={x:mouse.x-orange.x,y:mouse.y-orange.y}; currentStroke=[local]; orange.strokes.push(currentStroke);} 
   });
   canvas.addEventListener('mousemove',e=>{const prevX=mouse.x, prevY=mouse.y; mouse.x=e.clientX; mouse.y=e.clientY;
     if(blackHole.dragging){blackHole.x=mouse.x-blackHole.offsetX; blackHole.y=mouse.y-blackHole.offsetY;}
@@ -350,7 +380,7 @@
         draw(){
           ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle);
           ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(0,0,this.r,0,Math.PI*2); ctx.fill();
-          if(this.isDiamond){ctx.fillStyle='#555'; ctx.fillRect(-this.r/2,-this.r-5,this.r,5); ctx.fillStyle='#000'; ctx.fillRect(-this.r/3,-this.r/2, this.r/3,3); ctx.fillRect(this.r/6,-this.r/2, this.r/3,3);} else {ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(-this.r/3,-this.r/4,this.r/10,0,Math.PI*2); ctx.arc(this.r/3,-this.r/4,this.r/10,0,Math.PI*2); ctx.fill();}
+          if(this.isDiamond){ctx.fillStyle='#555'; ctx.fillRect(-this.r/2,-this.r-5,this.r,5); ctx.fillStyle='#000'; ctx.fillRect(-this.r/3,-this.r/2, this.r/3,3); ctx.fillRect(this.r/6,-this.r/2, this.r/3,3);} else {ctx.fillStyle='#000'; ctx.fillRect(-this.r/3,-this.r/4, this.r/3,3); ctx.fillRect(this.r/6,-this.r/4, this.r/3,3);} // eyes simplified
           ctx.beginPath(); ctx.arc(0,0,this.r/3,0,Math.PI); ctx.stroke();
           if(this.name){ctx.fillStyle='#000'; ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.fillText(this.name,0,-this.r-5);}
           ctx.restore();
@@ -390,26 +420,31 @@
     }
   }
   function applyUnlocks(){
-    if(hoop.points>=100){orange.color='#FFFF00'; orange.name='Lemon';}
-    if(hoop.points>=500){orange.color='#800080'; orange.name='Grape';}
+    if(hoop.points>=100 && orange.name!=='Lemon'){orange.color='#FFFF00'; orange.name='Lemon';}
+    if(hoop.points>=500 && orange.name!=='Grape'){orange.color='#800080'; orange.name='Grape';}
     if(hoop.points>=1000){orange.hasNecklace=true; speedBtn.disabled=false; sizeBtn.disabled=false;}
   }
   function gameLoop(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);} else {ctx.fillStyle='#EEE'; ctx.fillRect(0,0,canvas.width,canvas.height);}
+    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);} else {ctx.fillStyle='#EEE';ctx.fillRect(0,0,canvas.width,canvas.height);}
+    // Black hole attraction (excluding blocks)
+    if(blackHole.enabled && orange.visible){
+      const dx=orange.x-blackHole.x, dy=orange.y-blackHole.y; const dist=Math.hypot(dx,dy);
+      if(dist<200){ orange.vx-=dx*blackHole.strength; orange.vy-=dy*blackHole.strength; }
+    }
+    slices.forEach(s=>s.draw && s.draw());
+    blocks.forEach(b=>b.draw && b.draw());
+    cup.draw();
+    orange.draw();
+    drawHoop();
     updateSlices();
     updateOrange();
     updateBlocks();
     checkHoopCollision();
-    drawHoop();
-    slices.forEach(s=>s.draw());
-    orange.draw();
-    blocks.forEach(b=>b.draw());
-    cup.draw();
+    applyUnlocks();
     requestAnimationFrame(gameLoop);
-    saveGame();
   }
   gameLoop();
 </script>
 </body>
-</html>.
+</html>
