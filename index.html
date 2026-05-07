@@ -216,7 +216,7 @@
     orange.isGold=true; orange.isDiamond=false; orange.color='#FFD700'; orange.name='Gold'; orange.speedMultiplier=2; orange.r=50; // keep size same
   }
   function makeDiamond(){
-    orange.isDiamond=true; orange.isGold=false; orange.color='#B9F2FF'; orange.name='Diamond'; orange.speedMultiplier=3; orange.r=70; // bigger
+    orange.isDiamond=true; orange.isGold=false; orange.color='#B9F2FF'; orange.name='Diamond'; orange.speedMultiplier=5; orange.r=70; // bigger and really fast
   }
   // 1% gold chance (unless saved)
   if(!localStorage.getItem('orangeGameState')){
@@ -316,8 +316,7 @@
       if(orange.visible && distToOrange<150){ const angle=Math.atan2(orange.y-clickY,orange.x-clickX); orange.vx+=Math.cos(angle)*impulse/orange.mass; orange.vy+=Math.sin(angle)*impulse/orange.mass; orange.angularVel+=(Math.random()-0.5)*0.4; }
       sounds.powerRacket.play();
     } else if(UI.mode==='delete'){
-      for(let i=blocks.length-1;i>=0;i--){ const b=blocks[i]; if(clickX>b.x-b.w/2 && clickX<b.x+b.w/2 && clickY>b.y-b.h/2 && clickY<b.y+b.h/2){ blocks.splice(i,1); break; } }
-    }
+      for(let i=blocks.length-1;i>=0;i--){ const b=blocks[i]; if(clickX>b.x-b.w/2 && clickX<b.x+b.w/2 && clickY>b.y-b.h/2 && clickY<b.y+b.h/2){ blocks.splice(i,1); break; } } }
   });
 
   function createSlices(cx,cy){
@@ -327,12 +326,13 @@
       const sliceColor=orange.color;
       const sliceName=orange.name;
       const isDiamondSlice=orange.isDiamond;
+      const speedFactor = isDiamondSlice ? 4 : 2; // faster for diamond slices
       slices.push({
         x:cx+Math.cos(angle)*orange.r,
         y:cy+Math.sin(angle)*orange.r,
         r:isDiamondSlice?orange.r/3:orange.r/2,
-        vx:Math.cos(angle)*2+(Math.random()-0.5),
-        vy:Math.sin(angle)*2+(Math.random()-0.5),
+        vx:Math.cos(angle)*speedFactor+(Math.random()-0.5),
+        vy:Math.sin(angle)*speedFactor+(Math.random()-0.5),
         angle:0,
         angularVel:(Math.random()-0.5)*0.1,
         dragging:false,
@@ -363,7 +363,7 @@
   }
 
   function updateSlices(){
-    for(const s of slices){ if(!s.dragging){ s.x+=s.vx; s.y+=s.vy; s.vy+=0.1; s.angle+=s.angularVel; if(s.x-s.r<0){ s.x=s.r; s.vx*=-0.8; } if(s.x+s.r>canvas.width){ s.x=canvas.width-s.r; s.vx*=-0.8; } if(s.y-s.r<0){ s.y=s.r; s.vy*=-0.8; } if(s.y+s.r>canvas.height){ s.y=canvas.height-s.r; s.vy*=-0.8; } if(UI.loop){ s.vx=2; } } }
+    for(const s of slices){ if(!s.dragging){ s.x+=s.vx; s.y+=s.vy; s.vy+=0.1; s.angle+=s.angularVel; if(s.x-s.r<0){ s.x=s.r; s.vx*=-0.8; } if(s.x+s.r>canvas.width){ s.x=canvas.width-s.r; s.vx*=-0.8; } if(s.y-s.r<0){ s.y=s.r; s.vy*=-0.8; } if(s.y+s.r>canvas.height){ s.y=canvas.height-s.r; s.vy*=-0.8; } if(UI.loop){ s.vx=speedFactor?speedFactor:2; } } }
   }
 
   function updateOrange(){
