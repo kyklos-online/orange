@@ -8,7 +8,7 @@
   #ui {
     position:absolute; top:10px; left:10px; background:#fff; padding:10px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3);
   }
-  #ui button, #ui input { margin:2px; }
+  #ui button, #ui input, #ui select { margin:2px; }
   #nameInput { width:120px; }
   #bgInput { width:150px; }
 </style>
@@ -18,20 +18,49 @@
   <label>Name: <input type="text" id="nameInput" placeholder="Orange name" /></label>
   <br/>
   <button id="swordBtn">Sword (Slice)</button>
-  <button id="racketBtn">Tennis Racket (Smack)</button>
+  <button id="racketBtn">Racket (Smack)</button>
+  <button id="powerRacketBtn">Power Racket (Smash)</button>
   <button id="handBtn">Hand (Pick up)</button>
   <button id="deleteBtn">Delete (Remove Block)</button>
   <button id="drawBtn">Draw (On Orange)</button>
+  <button id="fanBtn">Fan (Gust)</button>
+  <button id="blackHoleBtn">Toggle Black Hole</button>
   <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
   <br/>
   <input type="file" id="bgInput" accept="image/*" />
+  <select id="colorSelect">
+    <option value="#FFA500" data-name="Orange" selected>Orange</option>
+    <option value="#4169E1" data-name="Blueberry">Blueberry</option>
+    <option value="#FF4500" data-name="Strawberry">Strawberry</option>
+  </select>
 </div>
 <canvas id="gameCanvas"></canvas>
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const UI = { mode: null, loop: false };
+  const fan = {
+    enabled: false,
+    dirIndex: 0,
+    dirs: ['left','right','down','up'],
+    size: 60,
+    x: 80,
+    y: 80,
+    dragging: false,
+    offsetX: 0,
+    offsetY: 0
+  };
+  const blackHole = {
+    enabled: false,
+    x: 300,
+    y: 300,
+    radius: 80,
+    strength: 0.05,
+    dragging: false,
+    offsetX: 0,
+    offsetY: 0
+  };
   let bgImage = null; // Holds uploaded background image
 
   const orange = {
@@ -44,6 +73,7 @@
     angularVel: 0,
     dragging: false,
     name: 'Orange',
+    color: '#FFA500',
     visible: true,
     mass: 5,
     strokes: [], // for drawing on orange
@@ -51,7 +81,7 @@
       ctx.save();
       ctx.translate(this.x, this.y);
       ctx.rotate(this.angle);
-      ctx.fillStyle = '#FFA500';
+      ctx.fillStyle = this.color;
       ctx.beginPath();
       ctx.arc(0, 0, this.r, 0, Math.PI * 2);
       ctx.fill();
@@ -120,34 +150,6 @@
     }
   }
 
-  // Black hole definition (replaces fan)
-  const blackHole = {
-    x: 300,
-    y: 300,
-    radius: 20, // visual radius
-    pullRadius: 200, // influence distance
-    strength: 0.6, // pull magnitude factor
-    dragging: false,
-    offsetX: 0,
-    offsetY: 0,
-    draw() {
-      // draw a dark circle with a subtle glow
-      const gradient = ctx.createRadialGradient(this.x, this.y, this.radius, this.x, this.y, this.radius * 3);
-      gradient.addColorStop(0, '#000');
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.save();
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius * 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  };
-
   // Resize canvas
   function resize() {
     canvas.width = window.innerWidth;
@@ -162,9 +164,23 @@
   // UI button handling
   document.getElementById('swordBtn').onclick = () => { UI.mode = UI.mode === 'sword' ? null : 'sword'; };
   document.getElementById('racketBtn').onclick = () => { UI.mode = UI.mode === 'racket' ? null : 'racket'; };
+  document.getElementById('powerRacketBtn').onclick = () => { UI.mode = UI.mode === 'powerRacket' ? null : 'powerRacket'; };
   document.getElementById('handBtn').onclick = () => { UI.mode = UI.mode === 'hand' ? null : 'hand'; };
   document.getElementById('deleteBtn').onclick = () => { UI.mode = UI.mode === 'delete' ? null : 'delete'; };
   document.getElementById('drawBtn').onclick = () => { UI.mode = UI.mode === 'draw' ? null : 'draw'; };
+  document.getElementById('fanBtn').onclick = () => {
+    if (!fan.enabled) return; // fan only works after a slice event
+    fan.dirIndex = (fan.dirIndex + 1) % fan.dirs.length;
+    applyFanGust();
+  };
+  document.getElementById('blackHoleBtn').onclick = () => {
+    blackHole.enabled = !blackHole.enabled;
+    if (blackHole.enabled) {
+      // centre it when enabled
+      blackHole.x = canvas.width / 2;
+      blackHole.y = canvas.height / 2;
+    }
+  };
   document.getElementById('loopBtn').onclick = () => {
     UI.loop = !UI.loop;
     if (!UI.loop) { orange.vx = 0; }
@@ -185,7 +201,17 @@
 
   // Name input handling
   document.getElementById('nameInput').addEventListener('input', e => {
-    orange.name = e.target.value || 'Orange';
+    orange.name = e.target.value || orange.name;
+  });
+
+  // Color selection handling
+  document.getElementById('colorSelect').addEventListener('change', e => {
+    const sel = e.target;
+    const color = sel.value;
+    const name = sel.options[sel.selectedIndex].getAttribute('data-name');
+    orange.color = color;
+    orange.name = name;
+    document.getElementById('nameInput').value = name;
   });
 
   // Mouse interaction
@@ -198,13 +224,24 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
 
-    // Check black hole dragging first
+    // Check fan dragging first
+    const fanLeft = fan.x - fan.size/2;
+    const fanTop = fan.y - fan.size/4;
+    const fanRight = fan.x + fan.size/2;
+    const fanBottom = fan.y + fan.size/4;
+    if (mouse.x >= fanLeft && mouse.x <= fanRight && mouse.y >= fanTop && mouse.y <= fanBottom) {
+      fan.dragging = true;
+      fan.offsetX = mouse.x - fan.x;
+      fan.offsetY = mouse.y - fan.y;
+      return; // do not process other tools while dragging fan
+    }
+    // Check black hole dragging
     const bhDist = Math.hypot(mouse.x - blackHole.x, mouse.y - blackHole.y);
-    if (bhDist <= blackHole.radius) {
+    if (blackHole.enabled && bhDist <= blackHole.radius) {
       blackHole.dragging = true;
       blackHole.offsetX = mouse.x - blackHole.x;
       blackHole.offsetY = mouse.y - blackHole.y;
-      return; // don't process other tools while dragging black hole
+      return;
     }
 
     if (UI.mode === 'hand') {
@@ -229,6 +266,11 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
 
+    // Fan dragging
+    if (fan.dragging) {
+      fan.x = mouse.x - fan.offsetX;
+      fan.y = mouse.y - fan.offsetY;
+    }
     // Black hole dragging
     if (blackHole.dragging) {
       blackHole.x = mouse.x - blackHole.offsetX;
@@ -254,6 +296,8 @@
 
   canvas.addEventListener('mouseup', e => {
     mouse.down = false;
+    // End fan drag
+    if (fan.dragging) { fan.dragging = false; }
     // End black hole drag
     if (blackHole.dragging) { blackHole.dragging = false; }
 
@@ -271,28 +315,44 @@
     if (UI.mode === 'sword' && orange.visible && distToOrange <= orange.r) {
       createSlices(orange.x, orange.y);
       orange.visible = false;
+      fan.enabled = true; // enable fan after slicing
       if (slices.length) {
         const randIdx = Math.floor(Math.random() * slices.length);
         slices[randIdx].name = orange.name;
       }
     } else if (UI.mode === 'racket') {
-      // Impulse to slices
+      // Normal racket impulse
+      const impulse = 5;
       slices.forEach(s => {
         const d = Math.hypot(s.x - clickX, s.y - clickY);
         if (d < 100) {
           const angle = Math.atan2(s.y - clickY, s.x - clickX);
-          const impulse = 5;
           s.vx += Math.cos(angle) * impulse;
           s.vy += Math.sin(angle) * impulse;
         }
       });
-      // Impulse to whole orange
       if (orange.visible && distToOrange < 100) {
         const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
-        const impulse = 5 / orange.mass;
-        orange.vx += Math.cos(angle) * impulse;
-        orange.vy += Math.sin(angle) * impulse;
+        orange.vx += Math.cos(angle) * impulse / orange.mass;
+        orange.vy += Math.sin(angle) * impulse / orange.mass;
         orange.angularVel += (Math.random() - 0.5) * 0.2;
+      }
+    } else if (UI.mode === 'powerRacket') {
+      // Stronger impulse
+      const impulse = 12;
+      slices.forEach(s => {
+        const d = Math.hypot(s.x - clickX, s.y - clickY);
+        if (d < 150) {
+          const angle = Math.atan2(s.y - clickY, s.x - clickX);
+          s.vx += Math.cos(angle) * impulse;
+          s.vy += Math.sin(angle) * impulse;
+        }
+      });
+      if (orange.visible && distToOrange < 150) {
+        const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
+        orange.vx += Math.cos(angle) * impulse / orange.mass;
+        orange.vy += Math.sin(angle) * impulse / orange.mass;
+        orange.angularVel += (Math.random() - 0.5) * 0.4;
       }
     } else if (UI.mode === 'delete') {
       for (let i = blocks.length - 1; i >= 0; i--) {
@@ -411,31 +471,66 @@
     }
   }
 
-  function applyBlackHolePull() {
-    // Pull on orange
-    if (orange.visible && !orange.dragging) {
+  function applyFanGust() {
+    const dir = fan.dirs[fan.dirIndex];
+    const magnitude = 3;
+    let vx = 0, vy = 0;
+    if (dir === 'left') vx = -magnitude;
+    else if (dir === 'right') vx = magnitude;
+    else if (dir === 'up') vy = -magnitude;
+    else if (dir === 'down') vy = magnitude;
+    // Apply to all slices
+    slices.forEach(s => { s.vx += vx; s.vy += vy; });
+    // Also affect whole orange if still visible
+    if (orange.visible) { orange.vx += vx; orange.vy += vy; }
+  }
+
+  function drawFan() {
+    if (!fan.enabled) return;
+    const size = fan.size;
+    const dir = fan.dirs[fan.dirIndex];
+    let angle = 0;
+    if (dir === 'left') angle = Math.PI;
+    else if (dir === 'right') angle = 0;
+    else if (dir === 'up') angle = -Math.PI/2;
+    else if (dir === 'down') angle = Math.PI/2;
+    ctx.save();
+    ctx.translate(fan.x, fan.y);
+    ctx.rotate(angle);
+    ctx.fillStyle = '#00BFFF';
+    ctx.fillRect(-size/2, -size/4, size, size/2);
+    ctx.restore();
+  }
+
+  function drawBlackHole() {
+    if (!blackHole.enabled) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(blackHole.x, blackHole.y, blackHole.radius, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function updateBlackHole() {
+    if (!blackHole.enabled) return;
+    // Pull orange
+    if (orange.visible) {
       const dx = blackHole.x - orange.x;
       const dy = blackHole.y - orange.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < blackHole.pullRadius && dist > 0) {
-        const pullFactor = (blackHole.pullRadius - dist) / blackHole.pullRadius; // stronger when closer
-        orange.vx += (dx / dist) * blackHole.strength * pullFactor;
-        orange.vy += (dy / dist) * blackHole.strength * pullFactor;
-      }
+      orange.vx += dx * blackHole.strength;
+      orange.vy += dy * blackHole.strength;
     }
-    // Pull on slices
-    for (const s of slices) {
-      if (!s.dragging) {
-        const dx = blackHole.x - s.x;
-        const dy = blackHole.y - s.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < blackHole.pullRadius && dist > 0) {
-          const pullFactor = (blackHole.pullRadius - dist) / blackHole.pullRadius;
-          s.vx += (dx / dist) * blackHole.strength * pullFactor;
-          s.vy += (dy / dist) * blackHole.strength * pullFactor;
-        }
-      }
-    }
+    // Pull slices
+    slices.forEach(s => {
+      const dx = blackHole.x - s.x;
+      const dy = blackHole.y - s.y;
+      s.vx += dx * blackHole.strength;
+      s.vy += dy * blackHole.strength;
+    });
   }
 
   function draw() {
@@ -445,7 +540,8 @@
       ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
     }
     cup.draw();
-    blackHole.draw();
+    drawFan();
+    drawBlackHole();
     if (orange.visible) orange.draw();
     slices.forEach(s => s.draw());
     blocks.forEach(b => b.draw());
@@ -456,7 +552,7 @@
     updateSlices();
     updateOrange();
     updateBlocks();
-    applyBlackHolePull();
+    updateBlackHole();
     requestAnimationFrame(loop);
   }
 
@@ -466,12 +562,13 @@
     orange.visible = true; orange.dragging = false;
     orange.name = document.getElementById('nameInput').value || 'Orange';
     orange.strokes = [];
+    orange.color = document.getElementById('colorSelect').value;
     slices.length = 0;
     UI.mode = null; UI.loop = false;
+    fan.enabled = false; fan.dirIndex = 0;
+    blackHole.enabled = false;
     bgImage = null;
     blocks.length = 0; createBlocks();
-    // Reset black hole position
-    blackHole.x = 300; blackHole.y = 300; blackHole.dragging = false;
   }
 
   // start loops
