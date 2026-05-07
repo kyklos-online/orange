@@ -89,8 +89,8 @@
         y: Math.random() * (canvas.height - size) + size/2,
         w: size,
         h: size,
-        vx: (Math.random() - 0.5) * 3,
-        vy: (Math.random() - 0.5) * 3,
+        vx: 0, // blocks no longer move on their own
+        vy: 0,
         color: '#4682B4',
         draw() {
           ctx.fillStyle = this.color;
@@ -116,7 +116,13 @@
   document.getElementById('racketBtn').onclick = () => { UI.mode = UI.mode === 'racket' ? null : 'racket'; };
   document.getElementById('handBtn').onclick = () => { UI.mode = UI.mode === 'hand' ? null : 'hand'; };
   document.getElementById('deleteBtn').onclick = () => { UI.mode = UI.mode === 'delete' ? null : 'delete'; };
-  document.getElementById('loopBtn').onclick = () => { UI.loop = !UI.loop; };
+  document.getElementById('loopBtn').onclick = () => {
+    UI.loop = !UI.loop;
+    if (!UI.loop) {
+      // stop automatic side‑to‑side motion when loop is disabled
+      orange.vx = 0;
+    }
+  };
   document.getElementById('resetBtn').onclick = resetGame;
 
   // Name input handling
@@ -271,7 +277,7 @@
   function updateOrange() {
     if (!orange.dragging && orange.visible !== false) {
       if (UI.loop) {
-        orange.vx = 2; // constant rightward speed
+        orange.vx = 2; // constant rightward speed when looping
       }
       orange.x += orange.vx;
       orange.y += orange.vy;
@@ -291,14 +297,8 @@
 
   function updateBlocks() {
     for (const b of blocks) {
-      b.x += b.vx;
-      b.y += b.vy;
-      // wall bounce
-      if (b.x - b.w/2 < 0) { b.x = b.w/2; b.vx *= -0.8; }
-      if (b.x + b.w/2 > canvas.width) { b.x = canvas.width - b.w/2; b.vx *= -0.8; }
-      if (b.y - b.h/2 < 0) { b.y = b.h/2; b.vy *= -0.8; }
-      if (b.y + b.h/2 > canvas.height) { b.y = canvas.height - b.h/2; b.vy *= -0.8; }
-      // simple collision with orange (push orange a bit)
+      // Blocks are static; no position updates
+      // Collision with orange (push orange a bit)
       if (orange.visible !== false) {
         const distX = Math.abs(b.x - orange.x);
         const distY = Math.abs(b.y - orange.y);
@@ -310,7 +310,7 @@
           orange.vy += Math.sin(angle) * push;
         }
       }
-      // collision with slices (optional, similar push)
+      // Collision with slices (push slices)
       slices.forEach(s => {
         const d = Math.hypot(b.x - s.x, b.y - s.y);
         if (d < s.r + Math.max(b.w, b.h)/2) {
