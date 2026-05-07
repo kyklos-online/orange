@@ -19,13 +19,16 @@
   <button id="swordBtn">Sword (Slice)</button>
   <button id="racketBtn">Tennis Racket (Smack)</button>
   <button id="handBtn">Hand (Pick up)</button>
+  <button id="deleteBtn">Delete (Remove Block)</button>
+  <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
 </div>
 <canvas id="gameCanvas"></canvas>
 <script>
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const UI = { mode: null };
+  const UI = { mode: null, loop: false };
+
   const orange = {
     x: 200,
     y: 200,
@@ -37,6 +40,7 @@
     dragging: false,
     name: 'Orange',
     visible: true,
+    mass: 5, // heavier than slices
     draw() {
       ctx.save();
       ctx.translate(this.x, this.y);
@@ -62,7 +66,9 @@
       ctx.fillText(this.name, this.x, this.y - this.r - 10);
     }
   };
+
   const slices = [];
+
   const cup = {
     x: canvas.width / 2,
     y: canvas.height - 40,
@@ -74,6 +80,26 @@
     }
   };
 
+  const blocks = [];
+  function createBlocks(count = 3) {
+    for (let i = 0; i < count; i++) {
+      const size = 40;
+      blocks.push({
+        x: Math.random() * (canvas.width - size) + size/2,
+        y: Math.random() * (canvas.height - size) + size/2,
+        w: size,
+        h: size,
+        vx: (Math.random() - 0.5) * 3,
+        vy: (Math.random() - 0.5) * 3,
+        color: '#4682B4',
+        draw() {
+          ctx.fillStyle = this.color;
+          ctx.fillRect(this.x - this.w/2, this.y - this.h/2, this.w, this.h);
+        }
+      });
+    }
+  }
+
   // Resize canvas
   function resize() {
     canvas.width = window.innerWidth;
@@ -83,11 +109,14 @@
   }
   window.addEventListener('resize', resize);
   resize();
+  createBlocks();
 
   // UI button handling
   document.getElementById('swordBtn').onclick = () => { UI.mode = UI.mode === 'sword' ? null : 'sword'; };
   document.getElementById('racketBtn').onclick = () => { UI.mode = UI.mode === 'racket' ? null : 'racket'; };
   document.getElementById('handBtn').onclick = () => { UI.mode = UI.mode === 'hand' ? null : 'hand'; };
+  document.getElementById('deleteBtn').onclick = () => { UI.mode = UI.mode === 'delete' ? null : 'delete'; };
+  document.getElementById('loopBtn').onclick = () => { UI.loop = !UI.loop; };
   document.getElementById('resetBtn').onclick = resetGame;
 
   // Name input handling
@@ -103,7 +132,6 @@
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     if (UI.mode === 'hand') {
-      // prioritize slices, then orange
       for (let i = slices.length-1; i >=0; i--) {
         const s = slices[i];
         const d = Math.hypot(mouse.x - s.x, mouse.y - s.y);
@@ -137,7 +165,7 @@
     if (draggedObj) {
       draggedObj.dragging = false;
       draggedObj = null;
-      return; // drag handled, skip tool actions
+      return; // skip tool actions
     }
     const clickX = e.clientX;
     const clickY = e.clientY;
@@ -145,27 +173,38 @@
     if (UI.mode === 'sword' && orange.visible !== false && distToOrange <= orange.r) {
       createSlices(orange.x, orange.y);
       orange.visible = false;
-      // give the orange's current name to a random slice
       if (slices.length) {
         const randIdx = Math.floor(Math.random() * slices.length);
         slices[randIdx].name = orange.name;
       }
     } else if (UI.mode === 'racket') {
-      // Apply impulse to nearby slices
+      // Impulse to slices
       slices.forEach(s => {
         const d = Math.hypot(s.x - clickX, s.y - clickY);
         if (d < 100) {
           const angle = Math.atan2(s.y - clickY, s.x - clickX);
-          s.vx += Math.cos(angle) * 5;
-          s.vy += Math.sin(angle) * 5;
+          const impulse = 5; // lighter slices, stronger effect
+          s.vx += Math.cos(angle) * impulse;
+          s.vy += Math.sin(angle) * impulse;
         }
       });
-      // Also affect the whole orange if it's visible and close enough
+      // Impulse to whole orange (heavier -> reduced effect)
       if (orange.visible !== false && distToOrange < 100) {
         const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
-        orange.vx += Math.cos(angle) * 5;
-        orange.vy += Math.sin(angle) * 5;
+        const impulse = 5 / orange.mass; // reduced by mass
+        orange.vx += Math.cos(angle) * impulse;
+        orange.vy += Math.sin(angle) * impulse;
         orange.angularVel += (Math.random() - 0.5) * 0.2;
+      }
+    } else if (UI.mode === 'delete') {
+      // Remove clicked block
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i];
+        if (clickX > b.x - b.w/2 && clickX < b.x + b.w/2 &&
+            clickY > b.y - b.h/2 && clickY < b.y + b.h/2) {
+          blocks.splice(i, 1);
+          break;
+        }
       }
     }
   });
@@ -183,6 +222,7 @@
         angularVel: (Math.random()-0.5) * 0.1,
         dragging: false,
         name: '',
+        mass: 1, // lighter than orange
         draw() {
           ctx.save();
           ctx.translate(this.x, this.y);
@@ -191,7 +231,7 @@
           ctx.beginPath();
           ctx.arc(0,0,this.r,0,Math.PI*2);
           ctx.fill();
-          // simple smiley on slice
+          // smiley
           ctx.fillStyle = '#000';
           ctx.beginPath();
           ctx.arc(-this.r/3, -this.r/4, this.r/10,0,Math.PI*2);
@@ -200,7 +240,6 @@
           ctx.beginPath();
           ctx.arc(0,0,this.r/3,0,Math.PI);
           ctx.stroke();
-          // draw name if present
           if (this.name) {
             ctx.fillStyle = '#000';
             ctx.font = '14px sans-serif';
@@ -220,7 +259,7 @@
         s.y += s.vy;
         s.vy += 0.1; // gravity
         s.angle += s.angularVel;
-        // bounce off walls
+        // wall bounce
         if (s.x - s.r < 0) { s.x = s.r; s.vx *= -0.8; }
         if (s.x + s.r > canvas.width) { s.x = canvas.width - s.r; s.vx *= -0.8; }
         if (s.y - s.r < 0) { s.y = s.r; s.vy *= -0.8; }
@@ -231,15 +270,56 @@
 
   function updateOrange() {
     if (!orange.dragging && orange.visible !== false) {
+      if (UI.loop) {
+        orange.vx = 2; // constant rightward speed
+      }
       orange.x += orange.vx;
       orange.y += orange.vy;
       orange.vy += 0.1; // gravity
       orange.angle += orange.angularVel;
-      // simple wall bounce for orange
-      if (orange.x - orange.r < 0) { orange.x = orange.r; orange.vx *= -0.8; }
-      if (orange.x + orange.r > canvas.width) { orange.x = canvas.width - orange.r; orange.vx *= -0.8; }
+      // wall bounce with wrap for loop mode
+      if (orange.x - orange.r < 0) {
+        if (UI.loop) orange.x = canvas.width - orange.r; else { orange.x = orange.r; orange.vx *= -0.8; }
+      }
+      if (orange.x + orange.r > canvas.width) {
+        if (UI.loop) orange.x = orange.r; else { orange.x = canvas.width - orange.r; orange.vx *= -0.8; }
+      }
       if (orange.y - orange.r < 0) { orange.y = orange.r; orange.vy *= -0.8; }
       if (orange.y + orange.r > canvas.height) { orange.y = canvas.height - orange.r; orange.vy *= -0.8; }
+    }
+  }
+
+  function updateBlocks() {
+    for (const b of blocks) {
+      b.x += b.vx;
+      b.y += b.vy;
+      // wall bounce
+      if (b.x - b.w/2 < 0) { b.x = b.w/2; b.vx *= -0.8; }
+      if (b.x + b.w/2 > canvas.width) { b.x = canvas.width - b.w/2; b.vx *= -0.8; }
+      if (b.y - b.h/2 < 0) { b.y = b.h/2; b.vy *= -0.8; }
+      if (b.y + b.h/2 > canvas.height) { b.y = canvas.height - b.h/2; b.vy *= -0.8; }
+      // simple collision with orange (push orange a bit)
+      if (orange.visible !== false) {
+        const distX = Math.abs(b.x - orange.x);
+        const distY = Math.abs(b.y - orange.y);
+        const distance = Math.hypot(distX, distY);
+        if (distance < orange.r + Math.max(b.w, b.h)/2) {
+          const angle = Math.atan2(orange.y - b.y, orange.x - b.x);
+          const push = 2; // mild push
+          orange.vx += Math.cos(angle) * push;
+          orange.vy += Math.sin(angle) * push;
+        }
+      }
+      // collision with slices (optional, similar push)
+      slices.forEach(s => {
+        const d = Math.hypot(b.x - s.x, b.y - s.y);
+        if (d < s.r + Math.max(b.w, b.h)/2) {
+          const angle = Math.atan2(s.y - b.y, s.x - b.x);
+          const push = 2;
+          s.vx += Math.cos(angle) * push;
+          s.vy += Math.sin(angle) * push;
+        }
+      });
     }
   }
 
@@ -248,26 +328,25 @@
     cup.draw();
     if (orange.visible !== false) orange.draw();
     slices.forEach(s => s.draw());
+    blocks.forEach(b => b.draw());
     requestAnimationFrame(draw);
   }
 
   function loop() {
     updateSlices();
     updateOrange();
+    updateBlocks();
     requestAnimationFrame(loop);
   }
 
   function resetGame() {
-    orange.x = 200;
-    orange.y = 200;
-    orange.angle = 0;
-    orange.vx = orange.vy = 0;
-    orange.angularVel = 0;
-    orange.visible = true;
-    orange.dragging = false;
+    orange.x = 200; orange.y = 200; orange.angle = 0;
+    orange.vx = orange.vy = orange.angularVel = 0;
+    orange.visible = true; orange.dragging = false;
     orange.name = document.getElementById('nameInput').value || 'Orange';
     slices.length = 0;
-    UI.mode = null;
+    UI.mode = null; UI.loop = false;
+    blocks.length = 0; createBlocks();
   }
 
   // start loops
