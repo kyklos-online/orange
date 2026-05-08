@@ -61,14 +61,14 @@
     <li><strong>Racket / Power Racket:</strong> Click near objects to push them.</li>
     <li><strong>Delete:</strong> Remove a block by clicking it.</li>
     <li><strong>Draw:</strong> Draw on the orange while holding the mouse.</li>
-    <li><strong>Black Hole:</strong> Toggle to attract the orange and its slices, but only when they are close.</li>
+    <li><strong>Black Hole:</strong> Toggle to attract the orange and its slices (blocks are excluded).</li>
     <li><strong>Band‑Aid:</strong> Click a slice to remove all slices and restore the orange.</li>
     <li><strong>Loop:</strong> Makes the orange (and slices) move continuously side‑to‑side.</li>
     <li><strong>Reset:</strong> Restores the initial state (clears saved game).</li>
     <li><strong>Control key:</strong> Press to hide/show all tools.</li>
     <li><strong>Tab key:</strong> Opens a side tab with extra shape blocks (rectangle, square, diamond, triangle, slope). Click a shape to add it to the play area.</li>
     <li><strong>Arrow keys:</strong> Rotate selected block left/right, ↓ resets rotation.</li>
-    <li><strong>Hoop:</strong> Toggle the hoop. When the orange passes through the hoop you earn points; the hoop teleports to a new location after each score.</li>
+    <li><strong>Hoop:</strong> Toggle the hoop. When the orange or a slice passes through the hoop you earn points; the hoop teleports to a new location after each score.</li>
     <li><strong>Points:</strong> 100 points → Lemon skin, 500 points → Grape skin, 1000 points → Necklace + superspeed & supersize (togglable).</li>
   </ul>
   <button id="closeHowtoBtn" style="margin-top:10px; padding:5px 10px;">Close</button>
@@ -92,6 +92,7 @@
   const blackHole={enabled:false,x:300,y:300,radius:40,strength:0.02,dragging:false,offsetX:0,offsetY:0};
   let bgImage=null;
   const sounds={slice:new Audio('slice.mp3'),racket:new Audio('racket.mp3'),powerRacket:new Audio('powerRacket.mp3'),toggleHole:new Audio('toggleHole.mp3')};
+
   const orange={
     x:200,y:200,r:50,angle:0,vx:0,vy:0,angularVel:0,
     dragging:false,name:'Orange',color:'#FFA500',visible:true,
@@ -107,6 +108,7 @@
       ctx.beginPath();
       ctx.arc(0,0,this.r,0,Math.PI*2);
       ctx.fill();
+      // eyes / gold details omitted for brevity (same as original) 
       if(this.isGold){
         for(let i=0;i<8;i++){
           const a=Math.random()*Math.PI*2;
@@ -160,6 +162,7 @@
   }
   updateHoopPosition();
   const cup={x:canvas.width/2,y:canvas.height-40,w:120,h:30,draw(){ctx.fillStyle='#8B4514';ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h);}};
+
   function resize(){
     canvas.width=window.innerWidth;
     canvas.height=window.innerHeight;
@@ -169,6 +172,7 @@
   }
   window.addEventListener('resize',resize);
   resize();
+
   // ---------- Persistent State ----------
   function saveGame(){
     const state={
@@ -184,10 +188,11 @@
     if(saved){
       try{const state=JSON.parse(saved);
         if(state.orange) Object.assign(orange,state.orange);
-        if(state.hoop){hoop.active=state.hoop.active;hoop.points=state.hoop.points;document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');document.getElementById('pointsDiv').textContent='Points: '+hoop.points;}
-        if(state.slices){slices.length=0;state.slices.forEach(s=>slices.push(s));}
-        if(state.blocks){blocks.length=0;state.blocks.forEach(b=>blocks.push(b));}
-      }catch(e){console.error('Failed to load game state',e);}    }
+        if(state.hoop){hoop.active=state.hoop.active; hoop.points=state.hoop.points; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off'); document.getElementById('pointsDiv').textContent='Points: '+hoop.points;}
+        if(state.slices){slices.length=0; state.slices.forEach(s=>slices.push(s));}
+        if(state.blocks){blocks.length=0; state.blocks.forEach(b=>blocks.push(b));}
+      }catch(e){console.error('Failed to load game state',e);}
+    }
   }
   function resetGame(){
     localStorage.removeItem('orangeGameState');
@@ -207,6 +212,7 @@
     updateSkinAvailability();
     saveGame();
   }
+
   // ---------- Gold & Diamond Logic ----------
   function makeGold(){
     orange.isGold=true; orange.isDiamond=false; orange.color='#FFD700'; orange.name='Gold'; orange.speedMultiplier=2; orange.r=50; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
@@ -225,6 +231,7 @@
   orange.y=canvas.height/2;
   orange.vx=0; orange.vy=0; orange.angularVel=0;
   updateSkinAvailability();
+
   // ---------- UI Buttons ----------
   document.getElementById('swordBtn').onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
   document.getElementById('racketBtn').onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
@@ -251,31 +258,28 @@
     const name=selectedOption.getAttribute('data-name');
     orange.color=color; orange.originalColor=color; orange.name=name; document.getElementById('nameInput').value=name;
   });
+
   // --- Game start handling ---
   let gameRunning = false;
   function startGame(){
     if(gameRunning) return;
     gameRunning = true;
     document.getElementById('ui').style.display='block';
-    // Begin the main animation loop
     requestAnimationFrame(mainLoop);
   }
-  // Auto‑start the game when the page loads
-  window.addEventListener('load',()=>{
-    startGame();
-  });
+  window.addEventListener('load',()=>{startGame();});
   document.getElementById('hoopToggleBtn').onclick=()=>{hoop.active=!hoop.active; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');};
   const speedBtn=document.getElementById('speedToggleBtn');
   const sizeBtn=document.getElementById('sizeToggleBtn');
   speedBtn.onclick=()=>{
     orange.superspeed=!orange.superspeed;
-    if(orange.superspeed){ orange.speedMultiplier*=2; }
-    else { orange.speedMultiplier/=2; }
+    orange.speedMultiplier = orange.superspeed ? orange.speedMultiplier*2 : orange.speedMultiplier/2;
   };
   sizeBtn.onclick=()=>{
     orange.supersize=!orange.supersize;
     orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
   };
+
   // Shape tab handling
   let shapeTabVisible=false; let uiHidden=false;
   window.addEventListener('keydown',e=>{
@@ -329,6 +333,7 @@
     blocks.push(newBlock);
     shapeTabVisible=false; document.getElementById('shapeTab').style.display='none';
   });
+
   // Mouse interaction
   let mouse={x:0,y:0,down:false}; let draggedObj=null; let currentStroke=null;
   canvas.addEventListener('mousedown',e=>{mouse.down=true; mouse.x=e.clientX; mouse.y=e.clientY;
@@ -347,7 +352,7 @@
   canvas.addEventListener('mousemove',e=>{const prevX=mouse.x, prevY=mouse.y; mouse.x=e.clientX; mouse.y=e.clientY;
     if(blackHole.dragging){blackHole.x=mouse.x-blackHole.offsetX; blackHole.y=mouse.y-blackHole.offsetY;}
     if(draggedObj && draggedObj.dragging){const dx=mouse.x-prevX, dy=mouse.y-prevY; draggedObj.x+=dx; draggedObj.y+=dy; if(draggedObj===orange){orange.angle+=Math.atan2(dy,dx);} else {draggedObj.vx=0; draggedObj.vy=0;}}
-    if(UI.mode==='draw' && currentStroke){const local={x:mouse.x-orange.x, y:mouse.y-orange.y}; currentStroke.push(local);}    
+    if(UI.mode==='draw' && currentStroke){const local={x:mouse.x-orange.x, y:mouse.y-orange.y}; currentStroke.push(local);}
   });
   canvas.addEventListener('mouseup',e=>{mouse.down=false; if(blackHole.dragging){blackHole.dragging=false;}
     if(draggedObj){draggedObj.dragging=false; draggedObj=null; return;}
@@ -371,10 +376,11 @@
       let blockRemoved=false;
       for(let i=blocks.length-1;i>=0;i--){const b=blocks[i]; if(clickX>b.x-b.w/2 && clickX<b.x+b.w/2 && clickY>b.y-b.h/2 && clickY<b.y+b.h/2){blocks.splice(i,1); blockRemoved=true; break;}}
       if(!blockRemoved){
-        for(let i=slices.length-1;i>=0;i--){const s=slices[i]; if(Math.hypot(clickX-s.x,clickY-s.y)<=s.r){blocks.forEach(b=>b.immovable=true); break;}}
+        for(let i=slices.length-1;i>=0;i--){const s=slices[i]; if(Math.hypot(clickX-s.x,clickY-s.y)<=s.r){slices.splice(i,1); break;}}
       }
     }
   });
+
   function createSlices(cx,cy){
     const count = orange.isDiamond ? 12 : 8;
     for(let i=0;i<count;i++){
@@ -404,6 +410,7 @@
       });
     }
   }
+
   function circleRectCollision(circle,rect){
     const distX=Math.abs(circle.x-rect.x);
     const distY=Math.abs(circle.y-rect.y);
@@ -415,34 +422,116 @@
     const dy=distY-rect.h/2;
     return (dx*dx+dy*dy<=circle.r*circle.r);
   }
-  // Main loop (simplified placeholder – actual game logic would go here)
+
+  function applyUnlocks(){
+    // Enable skins based on points
+    if(hoop.points>=100){document.querySelector('#colorSelect option[value="#FFFF00"]').disabled=false;}
+    if(hoop.points>=500){document.querySelector('#colorSelect option[value="#800080"]').disabled=false;}
+    if(hoop.points>=1000){speedBtn.disabled=false; sizeBtn.disabled=false;}
+  }
+
+  function updateSkinAvailability(){
+    applyUnlocks();
+  }
+
+  // Main loop
   function mainLoop(){
-    // Clear background
+    // Background
     if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);} else {ctx.clearRect(0,0,canvas.width,canvas.height);}
-    // Draw cup, hoop, orange, slices, blocks, etc.
+    // Draw black hole if enabled
+    if(blackHole.enabled){
+      ctx.save();
+      ctx.translate(blackHole.x,blackHole.y);
+      ctx.fillStyle='rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(0,0,blackHole.radius,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+    // Pull orange & slices toward black hole (excluding blocks)
+    if(blackHole.enabled){
+      const attract=(obj)=>{
+        const dx=blackHole.x-obj.x; const dy=blackHole.y-obj.y;
+        const dist=Math.hypot(dx,dy);
+        if(dist===0) return;
+        const force=blackHole.strength * (obj.r/ (dist*dist)); // stronger for bigger objects
+        obj.vx+= (dx/dist)*force;
+        obj.vy+= (dy/dist)*force;
+      };
+      attract(orange);
+      slices.forEach(s=>attract(s));
+    }
+    // Draw cup, hoop, orange, slices, blocks
     cup.draw();
-    if(hoop.active){ctx.save(); ctx.translate(hoop.x,hoop.y); ctx.fillStyle='rgba(0,255,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
+    if(hoop.active){
+      ctx.save();
+      ctx.translate(hoop.x,hoop.y);
+      ctx.fillStyle='rgba(0,255,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(0,0,hoop.r,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
     orange.draw();
     slices.forEach(s=>s.draw());
     blocks.forEach(b=>b.draw());
-    // Simple physics placeholder (gravity, friction)
+    // Simple physics
     orange.vy+=0.2; // gravity
     orange.x+=orange.vx; orange.y+=orange.vy; orange.angle+=orange.angularVel;
-    // Ground collision
+    // Keep orange inside bounds (left, top, bottom) and stop before hoop on right
+    if(orange.x-orange.r<0){orange.x=orange.r; orange.vx*=-0.5;}
+    if(orange.y-orange.r<0){orange.y=orange.r; orange.vy*=-0.5;}
     if(orange.y+orange.r>canvas.height){orange.y=canvas.height-orange.r; orange.vy*=-0.5;}
+    const maxX = hoop.x - hoop.r - 5; // stop slightly left of hoop
+    if(orange.x+orange.r>maxX){orange.x=maxX-orange.r; orange.vx*=-0.5;}
     // Loop mode handling
     if(UI.loop){orange.x+=2; if(orange.x-orange.r>canvas.width) orange.x=-orange.r;}
-    // Continue animation
+    // Slice movement & screen bounce
+    slices.forEach(s=>{
+      s.x+=s.vx; s.y+=s.vy; s.angle+=s.angularVel;
+      if(s.x-s.r<0){s.x=s.r; s.vx*=-0.5;}
+      if(s.x+s.r>canvas.width){s.x=canvas.width-s.r; s.vx*=-0.5;}
+      if(s.y-s.r<0){s.y=s.r; s.vy*=-0.5;}
+      if(s.y+s.r>canvas.height){s.y=canvas.height-s.r; s.vy*=-0.5;}
+    });
+    // Block‑orange collision
+    blocks.forEach(b=>{
+      if(circleRectCollision(orange,b)){
+        // simple response: push orange back opposite direction
+        const dx=orange.x-b.x; const dy=orange.y-b.y;
+        const angle=Math.atan2(dy,dx);
+        orange.vx=-Math.cos(angle)*Math.abs(orange.vx);
+        orange.vy=-Math.sin(angle)*Math.abs(orange.vy);
+      }
+    });
+    // Hoop scoring
+    if(hoop.active){
+      // orange
+      if(Math.hypot(orange.x-hoop.x, orange.y-hoop.y) < orange.r + hoop.r){
+        hoop.points+=10; // award points
+        document.getElementById('pointsDiv').textContent='Points: '+hoop.points;
+        updateSkinAvailability();
+        // teleport hoop
+        updateHoopPosition();
+        sounds.racket.play();
+      }
+      // slices
+      slices.forEach((s,i)=>{
+        if(Math.hypot(s.x-hoop.x, s.y-hoop.y) < s.r + hoop.r){
+          hoop.points+=5;
+          document.getElementById('pointsDiv').textContent='Points: '+hoop.points;
+          updateSkinAvailability();
+          updateHoopPosition();
+          slices.splice(i,1); // remove slice after scoring
+          sounds.racket.play();
+        }
+      });
+    }
+    // Save state periodically
+    saveGame();
     requestAnimationFrame(mainLoop);
   }
-  // Helper to update skin availability (placeholder implementation)
-  function updateSkinAvailability(){
-    // Logic to enable/disable skin options based on points would go here.
-  }
-  // Placeholder for applying unlocks after secret code
-  function applyUnlocks(){
-    // Enable skins, superspeed, etc.
-  }
 </script>
+
 </body>
 </html>
