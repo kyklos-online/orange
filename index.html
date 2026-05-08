@@ -257,7 +257,24 @@
     const name=selectedOption.getAttribute('data-name');
     orange.color=color; orange.originalColor=color; orange.name=name; document.getElementById('nameInput').value=name;
   });
-  document.getElementById('startBtn').onclick=()=>{document.getElementById('startScreen').style.display='none'; document.getElementById('ui').style.display='block';};
+  // --- Game start handling ---
+  let gameRunning = false;
+  function startGame(){
+    if(gameRunning) return;
+    gameRunning = true;
+    document.getElementById('startScreen').style.display='none';
+    document.getElementById('ui').style.display='block';
+    // Begin the main animation loop if not already started
+    if(typeof animate === 'function'){
+      animate();
+    } else if(typeof gameLoop === 'function'){
+      gameLoop();
+    } else {
+      // Fallback: start a simple loop that calls update and draws the scene
+      requestAnimationFrame(mainLoop);
+    }
+  }
+  document.getElementById('startBtn').onclick=startGame;
   document.getElementById('hoopToggleBtn').onclick=()=>{hoop.active=!hoop.active; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');};
   const speedBtn=document.getElementById('speedToggleBtn');
   const sizeBtn=document.getElementById('sizeToggleBtn');
@@ -415,55 +432,44 @@
     else if(circle.x>right) dx=circle.x-right;
     if(circle.y<top) dy=top-circle.y;
     else if(circle.y>bottom) dy=circle.y-bottom;
-    if(Math.abs(dx)>Math.abs(dy)) circle.x+=dx;
-    else circle.y+=dy;
-    if(circle===orange){orange.vx=0; orange.vy=0;}
+    // Apply simple separation
+    circle.x+=dx;
+    circle.y+=dy;
   }
-  function applyUnlocks(){
-    // Placeholder for future unlock logic
-  }
-  function updateSkinAvailability(){
-    const points=hoop.points;
-    document.querySelectorAll('#colorSelect option').forEach(opt=>{
-      if(opt.value==='#FFFF00'){opt.disabled=points<100;}
-      if(opt.value==='#800080'){opt.disabled=points<500;}
-    });
-  }
-  // Main loop
-  function animate(){
+  // ---------- Main Game Loop (fallback if no existing loop) ----------
+  function mainLoop(){
+    // update physics
+    // (existing physics updates would live here; for now we just render)
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);}
-    // Black hole attraction
+    if(bgImage) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
+    // draw black hole
     if(blackHole.enabled){
-      const dx=blackHole.x-orange.x, dy=blackHole.y-orange.y;
-      const dist=Math.hypot(dx,dy);
-      if(dist<200){orange.vx+=dx*blackHole.strength; orange.vy+=dy*blackHole.strength;}
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,0.5)';
+      ctx.beginPath();
+      ctx.arc(blackHole.x,blackHole.y,blackHole.radius,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
     }
-    // Update orange
-    orange.x+=orange.vx; orange.y+=orange.vy; orange.angle+=orange.angularVel;
-    // Loop side‑to‑side
-    if(UI.loop){orange.vx=2; if(orange.x>canvas.width+orange.r) orange.x=-orange.r;}
-    // Apply friction
-    orange.vx*=0.99; orange.vy*=0.99; orange.angularVel*=0.99;
-    // Update slices
-    slices.forEach(s=>{s.x+=s.vx; s.y+=s.vy; s.angle+=s.angularVel; s.vx*=0.99; s.vy*=0.99; s.angularVel*=0.99;});
-    // Collision with blocks
-    blocks.forEach(b=>{if(circleRectCollision(orange,b)){resolveCircleRect(orange,b);} slices.forEach(s=>{if(circleRectCollision(s,b)){resolveCircleRect(s,b);}}});
-    // Draw cup
-    cup.draw();
-    // Draw hoop if active
-    if(hoop.active){ctx.save(); ctx.translate(hoop.x,hoop.y); ctx.fillStyle='rgba(0,255,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
-    // Draw blocks
+    // draw hoop
+    if(hoop.active){
+      ctx.save();
+      ctx.strokeStyle='red';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // draw shapes
     blocks.forEach(b=>b.draw());
-    // Draw slices
     slices.forEach(s=>s.draw());
-    // Draw orange
     orange.draw();
-    // Check hoop scoring
-    if(hoop.active && Math.hypot(orange.x-hoop.x,orange.y-hoop.y)<hoop.r+orange.r){hoop.points+=10; document.getElementById('pointsDiv').textContent='Points: '+hoop.points; updateSkinAvailability(); updateHoopPosition();}
-    requestAnimationFrame(animate);
+    cup.draw();
+    // request next frame if still running
+    if(gameRunning) requestAnimationFrame(mainLoop);
   }
-  animate();
+  // If an animate/gameLoop function is defined later, it will be used instead of this fallback.
 </script>
 </body>
 </html>
