@@ -71,7 +71,7 @@
     <li><strong>Racket / Power Racket:</strong> Click near objects to push them.</li>
     <li><strong>Delete:</strong> Remove a block by clicking it.</li>
     <li><strong>Draw:</strong> Draw on the orange while holding the mouse.</li>
-    <li><strong>Black Hole:</strong> Toggle to attract the orange and its slices, but only when they are close.</li>
+    <li><strong>Black Hole:</strong> Toggle to attract the orange and its slices strongly, and importantly the blocks also attract orange and slices slightly. You can drag the black hole.</li>
     <li><strong>Loop:</strong> Makes the orange (and slices) move continuously side‑to‑side.</li>
     <li><strong>Reset:</strong> Restores the initial state (clears saved game).</li>
     <li><strong>Control key:</strong> Press to hide/show all tools.</li>
@@ -99,7 +99,29 @@
   const canvas=document.getElementById('gameCanvas');
   const ctx=canvas.getContext('2d');
   const UI={mode:null,loop:false};
-  const blackHole={enabled:false,x:300,y:300,radius:40,strength:0.02,dragging:false,offsetX:0,offsetY:0};
+
+  const blackHole={
+    enabled:false,
+    x:300,
+    y:300,
+    radius:40,
+    strength:0.1, // stronger pull
+    dragging:false,
+    offsetX:0,
+    offsetY:0,
+    draw(){
+      ctx.save();
+      ctx.beginPath();
+      ctx.strokeStyle = 'purple';
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.4;
+      ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  };
+
   let bgImage=null;
   const sounds={
     slice:new Audio('slice.mp3'),
@@ -107,6 +129,7 @@
     powerRacket:new Audio('powerRacket.mp3'),
     toggleHole:new Audio('toggleHole.mp3')
   };
+
   const orange={
     x:200,y:200,r:50,angle:0,vx:0,vy:0,angularVel:0,
     dragging:false,name:'Orange',color:'#FFA500',visible:true,
@@ -114,6 +137,7 @@
     speedMultiplier:1,hasNecklace:false,superspeed:false,supersize:false,
     baseR:50,baseSpeed:1,
     draw(){
+      if(!this.visible) return;
       ctx.save();
       ctx.translate(this.x,this.y);
       ctx.rotate(this.angle);
@@ -121,7 +145,6 @@
       ctx.beginPath();
       ctx.arc(0,0,this.r,0,Math.PI*2);
       ctx.fill();
-      // sunglasses or gold sparkles
       if(this.isGold){
         for(let i=0;i<8;i++){
           const a=Math.random()*Math.PI*2;
@@ -141,7 +164,6 @@
         ctx.arc(15,-10,5,0,Math.PI*2);
         ctx.fill();
       }
-      // mouth
       ctx.beginPath();
       ctx.arc(0,5,15,0,Math.PI);
       ctx.stroke();
@@ -152,7 +174,6 @@
         stroke.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
         ctx.stroke();
       });
-      // necklace
       if(this.hasNecklace){
         ctx.strokeStyle='gold';
         ctx.lineWidth=4;
@@ -167,17 +188,20 @@
       ctx.fillText(this.name,this.x,this.y-this.r-10);
     }
   };
+
   const slices=[];
   const blocks=[];
   let selectedBlock=null;
-  const hoop={x:0,y:0,r:30,active:false,points:0};
 
+  const hoop={x:0,y:0,r:30,active:false,points:0};
   function updateHoopPosition(){
     hoop.x=canvas.width-hoop.r-20;
     hoop.y=Math.random()*(canvas.height-hoop.r*2)+hoop.r;
   }
   updateHoopPosition();
+
   const cup={x:canvas.width/2,y:canvas.height-40,w:120,h:30,draw(){ctx.fillStyle='#8B4514';ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h);}};
+
   function resize(){
     canvas.width=window.innerWidth;
     canvas.height=window.innerHeight;
@@ -188,13 +212,14 @@
   window.addEventListener('resize',resize);
   resize();
 
-  // ---------- Persistent State ----------
+  // Persistent state save/load/reset omitted here for brevity; same as before
+
   function saveGame(){
     const state={
-      orange:{x:orange.x,y:orange.y,vx:orange.vx,vy:orange.vy,angle:orange.angle,angularVel:orange.angularVel,isGold:orange.isGold,isDiamond:orange.isDiamond,speedMultiplier:orange.speedMultiplier,name:orange.name,color:orange.color,r:orange.r,hasNecklace:orange.hasNecklace,superspeed:orange.superspeed,supersize:orange.supersize,visible:orange.visible},
+      orange:{...orange},
       hoop:{active:hoop.active,points:hoop.points},
-      slices:slices.map(s=>({x:s.x,y:s.y,r:s.r,vx:s.vx,vy:s.vy,angle:s.angle,angularVel:s.angularVel,color:s.color,isDiamond:s.isDiamond,name:s.name})),
-      blocks:blocks.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,angle:b.angle,type:b.type,color:b.color}))
+      slices:slices.map(s=>({...s})),
+      blocks:blocks.map(b=>({...b}))
     };
     localStorage.setItem('orangeGameState',JSON.stringify(state));
   }
@@ -222,6 +247,7 @@
       }catch(e){console.error('Failed to load game state',e);}
     }
   }
+
   function resetGame(){
     localStorage.removeItem('orangeGameState');
     hoop.points=0;
@@ -251,7 +277,6 @@
     saveGame();
   }
 
-  // ---------- Gold & Diamond Logic ----------
   function makeGold(){
     orange.isGold=true; orange.isDiamond=false; orange.color='#FFD700'; orange.name='Gold'; orange.speedMultiplier=2; orange.r=50; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
   }
@@ -264,26 +289,24 @@
   }
   loadGame();
 
-  // Update Lemon and Grape option enablement depending on points
   function updateColorSelectUnlocks(){
-    const select = document.getElementById('colorSelect');
-    const points = hoop.points;
-    for(let i=0; i<select.options.length; i++){
-      const opt = select.options[i];
+    const select=document.getElementById('colorSelect');
+    let points=hoop.points;
+    for(let i=0;i<select.options.length;i++){
+      let opt=select.options[i];
       if(opt.dataset.unlock){
         if(points>=parseInt(opt.dataset.unlock)){
-          opt.disabled = false;
-          opt.style.opacity = 1;
+          opt.disabled=false;
+          opt.style.opacity=1;
         } else {
-          opt.disabled = true;
-          opt.style.opacity = 0.5;
-          // Prevent selection if current color is locked
-          if(opt.value === orange.color){
-            select.value = '#FFA500'; // Orange default
-            orange.color = '#FFA500';
-            orange.name = "Orange";
-            orange.originalColor = '#FFA500';
-            document.getElementById('nameInput').value = orange.name;
+          opt.disabled=true;
+          opt.style.opacity=0.5;
+          if(opt.value===orange.color){
+            select.value='#FFA500';
+            orange.color='#FFA500';
+            orange.name='Orange';
+            orange.originalColor='#FFA500';
+            document.getElementById('nameInput').value=orange.name;
           }
         }
       }
@@ -291,7 +314,7 @@
   }
   updateColorSelectUnlocks();
 
-  // ---------- UI Buttons ----------
+  // UI buttons handlers (unchanged)
   document.getElementById('swordBtn').onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
   document.getElementById('racketBtn').onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
   document.getElementById('powerRacketBtn').onclick=()=>{UI.mode=UI.mode==='powerRacket'?null:'powerRacket';};
@@ -349,37 +372,30 @@
     document.getElementById('ui').style.display='block';
   };
 
-  // Hoop toggle button
   document.getElementById('hoopToggleBtn').onclick=()=>{
     hoop.active=!hoop.active;
     document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');
   };
 
-  // Superspeed & Supersize toggle buttons (initially disabled)
   const speedBtn=document.getElementById('speedToggleBtn');
   const sizeBtn=document.getElementById('sizeToggleBtn');
   speedBtn.onclick=()=>{
     orange.superspeed=!orange.superspeed;
-    if(orange.superspeed){ orange.speedMultiplier*=2; }
-    else { orange.speedMultiplier/=2; }
+    if(orange.superspeed) orange.speedMultiplier*=2;
+    else orange.speedMultiplier/=2;
   };
   sizeBtn.onclick=()=>{
     orange.supersize=!orange.supersize;
     orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
   };
 
-  // Random menu lines
   const menuPhrases=["Orange you glad I made this game?","This game is un‑peel‑ievable.","Peel the competition!","Citrus vibes only."];
   document.getElementById('menuLine1').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
   document.getElementById('menuLine2').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
 
-  // Shape tab handling
   let shapeTabVisible=false; let uiHidden=false;
-
-  // Secret sequence variables
   let secretSeq = '', secretSeq2 = '', secretSeq3 = '';
 
-  // unlockAll function updated for 10000 points
   function unlockAll() {
     hoop.points = 10000;
     document.getElementById('pointsDiv').textContent = 'Points: ' + hoop.points;
@@ -401,7 +417,6 @@
       else if (e.key === 'ArrowRight') { selectedBlock.angle += Math.PI / 18; }
       else if (e.key === 'ArrowDown') { selectedBlock.angle = 0; }
     }
-    // Secret sequences
     if (e.key.length === 1) {
       secretSeq = (secretSeq + e.key.toLowerCase()).slice(-6);
       if (secretSeq === 'orange') makeGold();
@@ -413,8 +428,11 @@
   });
 
   document.getElementById('shapeTab').addEventListener('click',e=>{
-    if(e.target.tagName!=='BUTTON') return; const shape=e.target.getAttribute('data-shape');
-    let sizeW=50,sizeH=50; if(shape==='diamond'){sizeW=60;sizeH=60;} else if(shape==='rect'){sizeW=80;sizeH=40;}
+    if(e.target.tagName!=='BUTTON') return; 
+    const shape=e.target.getAttribute('data-shape');
+    let sizeW=50,sizeH=50; 
+    if(shape==='diamond'){sizeW=60;sizeH=60;} 
+    else if(shape==='rect'){sizeW=80;sizeH=40;}
     const newBlock={
       x:canvas.width/2,y:canvas.height/2,w:sizeW,h:sizeH,vx:0,vy:0,color:'#A0522D',type:shape==='square'?'rect':shape,dragging:false,angle:0,
       draw(){
@@ -427,10 +445,12 @@
       }
     };
     blocks.push(newBlock);
-    shapeTabVisible=false; document.getElementById('shapeTab').style.display='none';
+    shapeTabVisible=false; 
+    document.getElementById('shapeTab').style.display='none';
   });
 
-  // Mouse interaction
+  // Mouse interaction code unchanged (dragging etc)
+
   let mouse={x:0,y:0,down:false};
   let draggedObj=null;
   let currentStroke=null;
@@ -493,7 +513,7 @@
       currentStroke.push(local);
     }
   });
-  
+
 
   canvas.addEventListener('mouseup',e=>{
     mouse.down=false;
@@ -501,7 +521,6 @@
       blackHole.dragging=false;
     }
     if(draggedObj){
-      // Throwing logic: give velocity based on last drag delta (scaled and capped)
       const throwFactor = 0.3;
       draggedObj.vx = lastDragDelta.x * throwFactor;
       draggedObj.vy = lastDragDelta.y * throwFactor;
@@ -516,11 +535,9 @@
     const distToOrange=Math.hypot(clickX-orange.x,clickY-orange.y);
 
     if(UI.mode==='sword'){
-      // If clicking orange and it's visible, split it into slices and make it disappear
       if(orange.visible && distToOrange<=orange.r){
         createSlices(orange.x,orange.y);
-        orange.visible=false; // disappear sliced orange (any skin)
-        // Award points for gold orange
+        orange.visible=false;
         hoop.points += orange.isGold ? 50 : 10;
         document.getElementById('pointsDiv').textContent='Points: '+hoop.points;
         sounds.slice.play();
@@ -528,7 +545,6 @@
         updateColorSelectUnlocks();
         return;
       }
-      // If clicking a slice, recombine the slices back into orange
       for(let i=slices.length-1;i>=0;i--){
         const s=slices[i];
         if(Math.hypot(clickX-s.x,clickY-s.y)<=s.r){
@@ -603,10 +619,8 @@
     }
   });
 
-  // Helper: can slices be recombined? (simple check, recombine if same orange name and isDiamond status)
   function canRecombine(slice) { return true; }
 
-  // Create slices helper - add slices with color, position and velocity
   function createSlices(cx,cy){
     const count = orange.isDiamond ? 12 : 8;
     for(let i=0;i<count;i++){
@@ -645,31 +659,49 @@
     }
   }
 
-  // Update dynamics of slices
   function updateSlices(){
     for(const s of slices){
       if(!s.dragging){
         s.x+=s.vx;
         s.y+=s.vy;
-        s.vy+=0.1; // gravity
+        s.vy+=0.1;
         s.angle+=s.angularVel;
         if(s.x-s.r<0){s.x=s.r; s.vx*=-0.8;}
         if(s.x+s.r>canvas.width){s.x=canvas.width-s.r; s.vx*=-0.8;}
         if(s.y-s.r<0){s.y=s.r; s.vy*=-0.8;}
         if(s.y+s.r>canvas.height){s.y=canvas.height-s.r; s.vy*=-0.8;}
       }
+      if(blackHole.enabled){
+        const dx = blackHole.x - s.x;
+        const dy = blackHole.y - s.y;
+        const dist = Math.hypot(dx, dy);
+        if(dist < blackHole.radius){
+          const force = blackHole.strength * (1 - dist/blackHole.radius);
+          s.vx += force * dx/dist;
+          s.vy += force * dy/dist;
+        }
+      }
+      // Blocks push slices gently
+      for(const b of blocks){
+        const dx = s.x - b.x;
+        const dy = s.y - b.y;
+        const dist = Math.hypot(dx,dy);
+        if(dist < Math.max(b.w,b.h)/2 + s.r){
+          const pushForce = 0.2;
+          s.vx += (dx/dist)*pushForce;
+          s.vy += (dy/dist)*pushForce;
+        }
+      }
     }
   }
 
-  // Update orange dynamics
   function updateOrange(){
     if(!orange.dragging && orange.visible){
       if(UI.loop) orange.vx=2*orange.speedMultiplier;
       orange.x+=orange.vx*orange.speedMultiplier;
       orange.y+=orange.vy;
-      orange.vy+=0.1; // gravity
+      orange.vy+=0.1;
       orange.angle+=orange.angularVel;
-      // boundaries with looping side to side or bounce
       if(orange.x-orange.r<0){
         if(UI.loop) orange.x=canvas.width-orange.r;
         else{orange.x=orange.r; orange.vx*=-0.8;}
@@ -680,26 +712,67 @@
       }
       if(orange.y-orange.r<0){ orange.y=orange.r; orange.vy*=-0.8; }
       if(orange.y+orange.r>canvas.height){ orange.y=canvas.height-orange.r; orange.vy*=-0.8; }
-    }
-  }
-
-  // Update blocks and attract blocks slightly toward orange if near (blocks not affected by black hole)
-  function updateBlocks(){
-    for(const b of blocks){
-      if(orange.visible){
-        const dx=Math.abs(b.x-orange.x);
-        const dy=Math.abs(b.y-orange.y);
-        const distance=Math.hypot(dx,dy);
-        if(distance<100){
-          const angle=Math.atan2(b.y-orange.y,b.x-orange.x);
-          b.x+=Math.cos(angle)*0.5;
-          b.y+=Math.sin(angle)*0.5;
+      if(blackHole.enabled){
+        const dx = blackHole.x - orange.x;
+        const dy = blackHole.y - orange.y;
+        const dist = Math.hypot(dx, dy);
+        if(dist < blackHole.radius){
+          const force = blackHole.strength * (1 - dist/blackHole.radius);
+          orange.vx += force * dx/dist;
+          orange.vy += force * dy/dist;
+        }
+      }
+      // Blocks push orange gently
+      for(const b of blocks){
+        const dx = orange.x - b.x;
+        const dy = orange.y - b.y;
+        const dist = Math.hypot(dx,dy);
+        if(dist < Math.max(b.w,b.h)/2 + orange.r){
+          const pushForce = 0.2;
+          orange.vx += (dx/dist)*pushForce;
+          orange.vy += (dy/dist)*pushForce;
         }
       }
     }
   }
 
-  // Draw hoop golden circle
+  // Blocks move normally but additionally push orange and slices (above) and are affected by black hole strongly
+  function updateBlocks(){
+    for(const b of blocks){
+      if(b.dragging) continue;
+      b.x += b.vx || 0;
+      b.y += b.vy || 0;
+      b.vx = b.vx || 0;
+      b.vy = b.vy || 0;
+      if(b.x - b.w/2 < 0){
+        b.x = b.w/2;
+        b.vx = -b.vx;
+      }
+      if(b.x + b.w/2 > canvas.width){
+        b.x = canvas.width - b.w/2;
+        b.vx = -b.vx;
+      }
+      if(b.y - b.h/2 < 0){
+        b.y = b.h/2;
+        b.vy = -b.vy;
+      }
+      if(b.y + b.h/2 > canvas.height){
+        b.y = canvas.height - b.h/2;
+        b.vy = -b.vy;
+      }
+      if(blackHole.enabled){
+        const dx = blackHole.x - b.x;
+        const dy = blackHole.y - b.y;
+        const dist = Math.hypot(dx, dy);
+        if(dist < blackHole.radius){
+          const force = blackHole.strength * (1 - dist/blackHole.radius)*2; // stronger effect on blocks
+          b.vx += force * dx/dist;
+          b.vy += force * dy/dist;
+        }
+      }
+    }
+  }
+
   function drawHoop(){
     if(!hoop.active) return;
     ctx.save(); ctx.translate(hoop.x,hoop.y);
@@ -707,7 +780,6 @@
     ctx.restore();
   }
 
-  // Check hoop collision and add points
   function checkHoopCollision(){
     if(!hoop.active || !orange.visible) return;
     const dist=Math.hypot(orange.x-hoop.x, orange.y-hoop.y);
@@ -720,7 +792,6 @@
     }
   }
 
-  // Apply unlocks based on points
   function applyUnlocks(){
     if(hoop.points>=100 && orange.name!=='Lemon'){
       orange.color='#FFFF00'; orange.name='Lemon';
@@ -739,13 +810,9 @@
 
   function gameLoop(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);}
+    if(bgImage)ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
     else {ctx.fillStyle='#EEE';ctx.fillRect(0,0,canvas.width,canvas.height);}
-    // Black hole attraction (excluding blocks)
-    if(blackHole.enabled && orange.visible){
-      const dx=orange.x-blackHole.x, dy=orange.y-blackHole.y; const dist=Math.hypot(dx,dy);
-      if(dist<200){ orange.vx-=dx*blackHole.strength; orange.vy-=dy*blackHole.strength; }
-    }
+    if(blackHole.enabled) blackHole.draw();
     slices.forEach(s=>s.draw && s.draw());
     blocks.forEach(b=>b.draw && b.draw());
     orange.draw();
@@ -758,8 +825,8 @@
     saveGame();
     requestAnimationFrame(gameLoop);
   }
-  gameLoop();
 
+  gameLoop();
 </script>
 </body>
 </html>
