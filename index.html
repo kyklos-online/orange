@@ -6,34 +6,102 @@
 <style>
   body {margin:0; overflow:hidden; font-family:sans-serif; }
   #ui {position:absolute; top:60px; left:10px; background:#fff; padding:10px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3); display:none;}
-  #ui button {margin:2px;}
+  #ui button, #ui input, #ui select {margin:2px;}
+  #nameInput {width:120px;}
+  #bgInput {width:150px;}
   #titleLabel {position:absolute; top:10px; left:10px; color:#FFA500; font-size:24px; font-weight:bold;}
+  #hoopToggleBtn {position:absolute; top:60px; right:10px; padding:5px 10px;}
   #pointsDiv {position:absolute; top:10px; right:10px; color:#000; font-size:20px;}
   #startScreen {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-size:24px; z-index:1000;}
-  #startBtn {padding:10px 20px; font-size:18px;}
+  #controlHint {font-size:18px; margin-bottom:15px;}
+  #howtoModal {position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:1001; max-width:80%; max-height:80%; overflow:auto; display:none;}
+  #howtoModal h2 {margin-top:0;}
+  #howtoOverlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:none; z-index:1000;}
+  #shapeTab {position:fixed; top:0; right:0; width:200px; height:100%; background:#f0f0f0; border-left:1px solid #ccc; padding:10px; box-sizing:border-box; display:none; z-index:1002;}
+  #shapeTab button {width:100%; margin-bottom:5px;}
+  #phraseDiv {position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.8); padding:5px 10px; border-radius:4px; display:none; font-weight:bold;}
 </style>
 </head>
 <body>
 <div id="titleLabel">Orange Game</div>
 <div id="pointsDiv">Points: 0</div>
 <div id="ui">
+  <label>Name: <input type="text" id="nameInput" placeholder="Orange name" /></label>
+  <br/>
+  <button id="swordBtn">Sword (Slice)</button>
+  <button id="racketBtn">Racket (Smack)</button>
+  <button id="powerRacketBtn">Power Racket (Smash)</button>
   <button id="handBtn">Hand (Pick up / Move)</button>
+  <button id="deleteBtn">Delete (Remove Block)</button>
+  <button id="drawBtn">Draw (On Orange)</button>
+  <button id="bandAidBtn">Band‑Aid (Reset Slices)</button>
   <button id="blackHoleBtn">Toggle Black Hole</button>
   <button id="loopBtn">Loop (Side‑to‑Side)</button>
   <button id="resetBtn">Reset</button>
+  <button id="speedToggleBtn" disabled>Toggle Superspeed</button>
+  <button id="sizeToggleBtn" disabled>Toggle Supersize</button>
+  <button id="howtoBtn">How To</button>
+  <br/>
+  <input type="file" id="bgInput" accept="image/*" />
+  <select id="colorSelect">
+    <option value="#FFA500" data-name="Orange" selected>Orange</option>
+    <option value="#4169E1" data-name="Blueberry">Blueberry</option>
+    <option value="#FF4500" data-name="Strawberry">Strawberry</option>
+    <option value="#FFFF00" data-name="Lemon" disabled>Lemon (100 pts)</option>
+    <option value="#800080" data-name="Grape" disabled>Grape (500 pts)</option>
+  </select>
 </div>
+<button id="hoopToggleBtn">Hoop: Off</button>
 <canvas id="gameCanvas"></canvas>
+
 <div id="startScreen">
-  <div>Welcome to Orange Game</div>
-  <button id="startBtn">Start Game</button>
+  <div id="controlHint">Press <strong>Control</strong> to hide/show tools</div>
+  <div style="margin-bottom:20px; font-size:32px; color:#FFA500;">Welcome to Orange Game</div>
+  <div style="margin-bottom:10px; font-size:20px;" id="menuLine1"></div>
+  <div style="margin-bottom:20px; font-size:20px;" id="menuLine2"></div>
+  <button id="startBtn" style="padding:10px 20px; font-size:18px;">Start Game</button>
 </div>
+
+<div id="howtoOverlay"></div>
+<div id="howtoModal">
+  <h2>How To Play</h2>
+  <ul>
+    <li><strong>Hand:</strong> Click and drag the orange, its slices, or any block. While a block is selected you can rotate it with ← / → keys and press ↓ to reset its rotation.</li>
+    <li><strong>Sword:</strong> Click the orange or a slice to slice it into smaller pieces (or make it disappear).</li>
+    <li><strong>Racket / Power Racket:</strong> Click near objects to push them.</li>
+    <li><strong>Delete:</strong> Remove a block by clicking it.</li>
+    <li><strong>Draw:</strong> Draw on the orange while holding the mouse.</li>
+    <li><strong>Black Hole:</strong> Toggle to attract the orange and its slices, but only when they are close.</li>
+    <li><strong>Band‑Aid:</strong> Click a slice to remove all slices and restore the orange.</li>
+    <li><strong>Loop:</strong> Makes the orange (and slices) move continuously side‑to‑side.</li>
+    <li><strong>Reset:</strong> Restores the initial state (clears saved game).</li>
+    <li><strong>Control key:</strong> Press to hide/show all tools.</li>
+    <li><strong>Tab key:</strong> Opens a side tab with extra shape blocks (rectangle, square, diamond, triangle, slope). Click a shape to add it to the play area.</li>
+    <li><strong>Arrow keys:</strong> Rotate selected block left/right, ↓ resets rotation.</li>
+    <li><strong>Hoop:</strong> Toggle the hoop. When the orange passes through the hoop you earn points; the hoop teleports to a new location after each score.</li>
+    <li><strong>Points:</strong> 100 points → Lemon skin, 500 points → Grape skin, 1000 points → Necklace + superspeed & supersize (togglable).</li>
+  </ul>
+  <button id="closeHowtoBtn" style="margin-top:10px; padding:5px 10px;">Close</button>
+</div>
+
+<div id="shapeTab">
+  <h3>Shapes</h3>
+  <button data-shape="rect">Rectangle</button>
+  <button data-shape="square">Square</button>
+  <button data-shape="diamond">Diamond</button>
+  <button data-shape="triangle">Triangle</button>
+  <button data-shape="slope">Slope</button>
+</div>
+
+<div id="phraseDiv"></div>
+
 <script>
   const canvas=document.getElementById('gameCanvas');
   const ctx=canvas.getContext('2d');
-  const UI={mode:'hand',loop:false};
+  const UI={mode:null,loop:false};
   const blackHole={enabled:false,x:300,y:300,radius:40,strength:0.02,dragging:false,offsetX:0,offsetY:0};
   let bgImage=null;
-  const GRAVITY = 0.2; // gravity for orange slices
+  const sounds={slice:new Audio('slice.mp3'),racket:new Audio('racket.mp3'),powerRacket:new Audio('powerRacket.mp3'),toggleHole:new Audio('toggleHole.mp3')};
   const orange={
     x:200,y:200,r:50,angle:0,vx:0,vy:0,angularVel:0,
     dragging:false,name:'Orange',color:'#FFA500',visible:true,
@@ -49,16 +117,42 @@
       ctx.beginPath();
       ctx.arc(0,0,this.r,0,Math.PI*2);
       ctx.fill();
-      // simple eyes
-      ctx.fillStyle='#000';
-      ctx.beginPath();
-      ctx.arc(-15,-10,5,0,Math.PI*2);
-      ctx.arc(15,-10,5,0,Math.PI*2);
-      ctx.fill();
-      // mouth
+      if(this.isGold){
+        for(let i=0;i<8;i++){
+          const a=Math.random()*Math.PI*2;
+          const rad=this.r*0.7+Math.random()*10;
+          ctx.fillStyle='rgba(255,255,255,0.7)';
+          ctx.beginPath();
+          ctx.arc(Math.cos(a)*rad,Math.sin(a)*rad,2,0,Math.PI*2);
+          ctx.fill();
+        }
+        ctx.fillStyle='#000';
+        ctx.fillRect(-15,-12,10,5);
+        ctx.fillRect(5,-12,10,5);
+      } else {
+        ctx.fillStyle='#000';
+        ctx.beginPath();
+        ctx.arc(-15,-10,5,0,Math.PI*2);
+        ctx.arc(15,-10,5,0,Math.PI*2);
+        ctx.fill();
+      }
       ctx.beginPath();
       ctx.arc(0,5,15,0,Math.PI);
       ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,0.8)';
+      ctx.lineWidth=2;
+      this.strokes.forEach(stroke=>{
+        ctx.beginPath();
+        stroke.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+        ctx.stroke();
+      });
+      if(this.hasNecklace){
+        ctx.strokeStyle='gold';
+        ctx.lineWidth=4;
+        ctx.beginPath();
+        ctx.arc(0,0,this.r+8,0,Math.PI*2);
+        ctx.stroke();
+      }
       ctx.restore();
       ctx.fillStyle='#000';
       ctx.font='16px sans-serif';
@@ -67,80 +161,211 @@
     }
   };
   const slices=[];
+  const blocks=[];
+  let selectedBlock=null;
+  const hoop={x:0,y:0,r:30,active:false,points:0};
+  function updateHoopPosition(){
+    hoop.x=canvas.width-hoop.r-20;
+    hoop.y=Math.random()*(canvas.height-hoop.r*2)+hoop.r;
+  }
+  updateHoopPosition();
+  const cup={x:canvas.width/2,y:canvas.height-40,w:120,h:30,draw(){ctx.fillStyle='#8B4514';ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h);}};
   function resize(){
     canvas.width=window.innerWidth;
     canvas.height=window.innerHeight;
+    cup.x=canvas.width/2;
+    cup.y=canvas.height-40;
+    updateHoopPosition();
   }
   window.addEventListener('resize',resize);
   resize();
-
-  // ---------- Persistence ----------
+  // ---------- Persistent State ----------
   function saveGame(){
-    const state={orange:{x:orange.x,y:orange.y,vx:orange.vx,vy:orange.vy,angle:orange.angle,angularVel:orange.angularVel,visible:orange.visible},
-                 slices:slices.map(s=>({x:s.x,y:s.y,r:s.r,vx:s.vx,vy:s.vy,angle:s.angle,angularVel:s.angularVel,color:s.color,isDiamond:s.isDiamond}))};
+    const state={
+      orange:{x:orange.x,y:orange.y,vx:orange.vx,vy:orange.vy,angle:orange.angle,angularVel:orange.angularVel,isGold:orange.isGold,isDiamond:orange.isDiamond,speedMultiplier:orange.speedMultiplier,name:orange.name,color:orange.color,r:orange.r,hasNecklace:orange.hasNecklace,superspeed:orange.superspeed,supersize:orange.supersize,visible:orange.visible},
+      hoop:{active:hoop.active,points:hoop.points},
+      slices:slices.map(s=>({x:s.x,y:s.y,r:s.r,vx:s.vx,vy:s.vy,angle:s.angle,angularVel:s.angularVel,color:s.color,isDiamond:s.isDiamond})),
+      blocks:blocks.map(b=>({x:b.x,y:b.y,w:b.w,h:b.h,angle:b.angle,type:b.type,color:b.color,immovable:b.immovable}))
+    };
     localStorage.setItem('orangeGameState',JSON.stringify(state));
   }
   function loadGame(){
     const saved=localStorage.getItem('orangeGameState');
     if(saved){
       try{const state=JSON.parse(saved);
-        if(state.orange){Object.assign(orange,state.orange);}
-        if(state.slices){slices.length=0; state.slices.forEach(s=>slices.push(s));}
-      }catch(e){console.error(e);} }
+        if(state.orange) Object.assign(orange,state.orange);
+        if(state.hoop){hoop.active=state.hoop.active;hoop.points=state.hoop.points;document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');document.getElementById('pointsDiv').textContent='Points: '+hoop.points;}
+        if(state.slices){slices.length=0;state.slices.forEach(s=>slices.push(s));}
+        if(state.blocks){blocks.length=0;state.blocks.forEach(b=>blocks.push(b));}
+      }catch(e){console.error('Failed to load game state',e);}    }
   }
   function resetGame(){
     localStorage.removeItem('orangeGameState');
-    orange.x=canvas.width/2; orange.y=canvas.height/2; orange.vx=orange.vy=0; orange.angle=0; orange.angularVel=0; orange.visible=true;
-    slices.length=0;
+    hoop.points=0;
     document.getElementById('pointsDiv').textContent='Points: 0';
+    orange.hasNecklace=false;
+    orange.superspeed=false;
+    orange.supersize=false;
+    speedBtn.disabled=true;
+    sizeBtn.disabled=true;
+    orange.x=canvas.width/2; orange.y=canvas.height/2;
+    orange.vx=0; orange.vy=0; orange.angularVel=0; orange.angle=0; orange.visible=true; orange.color=orange.originalColor; orange.name='Orange'; orange.isGold=false; orange.isDiamond=false; orange.speedMultiplier=1; orange.r=orange.baseR;
+    slices.length=0; blocks.length=0;
+    hoop.active=false; document.getElementById('hoopToggleBtn').textContent='Hoop: Off';
+    document.getElementById('colorSelect').value=orange.originalColor;
+    document.getElementById('nameInput').value='';
+    updateSkinAvailability();
     saveGame();
   }
-
+  // ---------- Gold & Diamond Logic ----------
+  function makeGold(){
+    orange.isGold=true; orange.isDiamond=false; orange.color='#FFD700'; orange.name='Gold'; orange.speedMultiplier=2; orange.r=50; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
+  }
+  function makeDiamond(){
+    orange.isDiamond=true; orange.isGold=false; orange.color='#B9F2FF'; orange.name='Diamond'; orange.speedMultiplier=5; orange.r=70; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
+  }
+  // 1% gold chance, 0.1% diamond chance (1 in 1000)
+  if(!localStorage.getItem('orangeGameState')){
+    if(Math.random()<0.01) makeGold();
+    if(Math.random()<0.001) makeDiamond();
+  }
+  loadGame();
+  updateSkinAvailability();
   // ---------- UI Buttons ----------
-  document.getElementById('handBtn').onclick=()=>{UI.mode='hand';};
-  document.getElementById('blackHoleBtn').onclick=()=>{blackHole.enabled=!blackHole.enabled; if(blackHole.enabled){blackHole.x=canvas.width/2; blackHole.y=canvas.height/2;}};
+  document.getElementById('swordBtn').onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
+  document.getElementById('racketBtn').onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
+  document.getElementById('powerRacketBtn').onclick=()=>{UI.mode=UI.mode==='powerRacket'?null:'powerRacket';};
+  document.getElementById('handBtn').onclick=()=>{UI.mode=UI.mode==='hand'?null:'hand';};
+  document.getElementById('deleteBtn').onclick=()=>{UI.mode=UI.mode==='delete'?null:'delete';};
+  document.getElementById('drawBtn').onclick=()=>{UI.mode=UI.mode==='draw'?null:'draw';};
+  document.getElementById('bandAidBtn').onclick=()=>{UI.mode=UI.mode==='bandAid'?null:'bandAid';};
+  document.getElementById('blackHoleBtn').onclick=()=>{blackHole.enabled=!blackHole.enabled; sounds.toggleHole.play(); if(blackHole.enabled){blackHole.x=canvas.width/2; blackHole.y=canvas.height/2;}};
   document.getElementById('loopBtn').onclick=()=>{UI.loop=!UI.loop; if(!UI.loop){orange.vx=0;}};
   document.getElementById('resetBtn').onclick=resetGame;
-
-  // ---------- Start Screen ----------
-  document.getElementById('startBtn').onclick=()=>{
-    document.getElementById('startScreen').style.display='none';
-    document.getElementById('ui').style.display='block';
+  document.getElementById('howtoBtn').onclick=()=>{document.getElementById('howtoOverlay').style.display='block'; document.getElementById('howtoModal').style.display='block';};
+  document.getElementById('closeHowtoBtn').onclick=()=>{document.getElementById('howtoOverlay').style.display='none'; document.getElementById('howtoModal').style.display='none';};
+  document.getElementById('bgInput').addEventListener('change',e=>{const file=e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=ev=>{bgImage=new Image(); bgImage.src=ev.target.result;}; reader.readAsDataURL(file);});
+  document.getElementById('nameInput').addEventListener('input',e=>{orange.name=e.target.value||orange.name;});
+  document.getElementById('colorSelect').addEventListener('change',e=>{
+    const sel=e.target;
+    const selectedOption=sel.options[sel.selectedIndex];
+    if(selectedOption.disabled){
+      sel.value=orange.originalColor;
+      return;
+    }
+    const color=sel.value;
+    const name=selectedOption.getAttribute('data-name');
+    orange.color=color; orange.originalColor=color; orange.name=name; document.getElementById('nameInput').value=name;
+  });
+  document.getElementById('startBtn').onclick=()=>{document.getElementById('startScreen').style.display='none'; document.getElementById('ui').style.display='block';};
+  document.getElementById('hoopToggleBtn').onclick=()=>{hoop.active=!hoop.active; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');};
+  const speedBtn=document.getElementById('speedToggleBtn');
+  const sizeBtn=document.getElementById('sizeToggleBtn');
+  speedBtn.onclick=()=>{
+    orange.superspeed=!orange.superspeed;
+    if(orange.superspeed){ orange.speedMultiplier*=2; }
+    else { orange.speedMultiplier/=2; }
   };
-
-  // ---------- Mouse interaction ----------
-  let mouse={x:0,y:0,down:false};
-  let draggedObj=null;
-  canvas.addEventListener('mousedown',e=>{
-    mouse.down=true; mouse.x=e.clientX; mouse.y=e.clientY;
+  sizeBtn.onclick=()=>{
+    orange.supersize=!orange.supersize;
+    orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
+  };
+  // Random menu lines
+  const menuPhrases=["Orange you glad I made this game?","This game is un‑peel‑ievable.","Peel the competition!","Citrus vibes only."];
+  document.getElementById('menuLine1').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
+  document.getElementById('menuLine2').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
+  // Shape tab handling
+  let shapeTabVisible=false; let uiHidden=false;
+  window.addEventListener('keydown',e=>{
+    if(e.key==='Control' && !e.repeat){uiHidden=!uiHidden; document.getElementById('ui').style.display=uiHidden?'none':'block';}
+    if(e.key==='Tab'){e.preventDefault(); shapeTabVisible=!shapeTabVisible; document.getElementById('shapeTab').style.display=shapeTabVisible?'block':'none';}
+    if(selectedBlock){
+      if(e.key==='ArrowLeft'){selectedBlock.angle-=Math.PI/18;}
+      else if(e.key==='ArrowRight'){selectedBlock.angle+=Math.PI/18;}
+      else if(e.key==='ArrowDown'){selectedBlock.angle=0;}
+    }
+    // Secret sequences
+    if(e.key.length===1){
+      secretSeq=(secretSeq+e.key.toLowerCase()).slice(-6);
+      if(secretSeq==='orange') makeGold();
+      secretSeq2=(secretSeq2+e.key.toLowerCase()).slice(-9);
+      if(secretSeq2==='imsolucky') makeDiamond();
+      secretSeq3=(secretSeq3+e.key.toLowerCase()).slice(-9);
+      if(secretSeq3==='babastart') unlockAll();
+    }
+  });
+  let secretSeq=''; let secretSeq2=''; let secretSeq3='';
+  function unlockAll(){
+    hoop.points=1000;
+    document.getElementById('pointsDiv').textContent='Points: '+hoop.points;
+    applyUnlocks();
+  }
+  document.getElementById('shapeTab').addEventListener('click',e=>{
+    if(e.target.tagName!=='BUTTON') return; const shape=e.target.getAttribute('data-shape');
+    let sizeW=50,sizeH=50; if(shape==='diamond'){sizeW=60;sizeH=60;} else if(shape==='rect'){sizeW=80;sizeH=40;}
+    const newBlock={x:canvas.width/2,y:canvas.height/2,w:sizeW,h:sizeH,vx:0,vy:0,color:'#A0522D',type:shape==='square'?'rect':shape,dragging:false,angle:0,immovable:false,
+      draw(){
+        ctx.save();
+        ctx.translate(this.x,this.y);
+        ctx.rotate(this.angle);
+        if(this.type==='diamond'){ctx.rotate(Math.PI/4);ctx.fillStyle=this.color;ctx.fillRect(-this.w/2,-this.h/2,this.w,this.h);} 
+        else if(this.type==='triangle'){ctx.fillStyle=this.color;ctx.beginPath();ctx.moveTo(0,-this.h/2);ctx.lineTo(-this.w/2,this.h/2);ctx.lineTo(this.w/2,this.h/2);ctx.closePath();ctx.fill();}
+        else if(this.type==='slope'){ctx.fillStyle=this.color;ctx.beginPath();ctx.moveTo(-this.w/2,this.h/2);ctx.lineTo(this.w/2,this.h/2);ctx.lineTo(-this.w/2,-this.h/2);ctx.closePath();ctx.fill();}
+        else {ctx.fillStyle=this.color;ctx.fillRect(-this.w/2,-this.h/2,this.w,this.h);} 
+        // Removed hit‑box outline as per new requirement
+        ctx.restore();
+      }
+    };
+    blocks.push(newBlock);
+    shapeTabVisible=false; document.getElementById('shapeTab').style.display='none';
+  });
+  // Mouse interaction
+  let mouse={x:0,y:0,down:false}; let draggedObj=null; let currentStroke=null;
+  canvas.addEventListener('mousedown',e=>{mouse.down=true; mouse.x=e.clientX; mouse.y=e.clientY;
     const bhDist=Math.hypot(mouse.x-blackHole.x,mouse.y-blackHole.y);
     if(blackHole.enabled && bhDist<=blackHole.radius){blackHole.dragging=true; blackHole.offsetX=mouse.x-blackHole.x; blackHole.offsetY=mouse.y-blackHole.y; return;}
     if(UI.mode==='hand'){
-      if(orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){draggedObj=orange; orange.dragging=true; return;}
-      for(let i=slices.length-1;i>=0;i--){
-        const s=slices[i];
-        if(Math.hypot(mouse.x-s.x,mouse.y-s.y)<=s.r){draggedObj=s; s.dragging=true; return;}
+      for(let i=blocks.length-1;i>=0;i--){const b=blocks[i]; const withinX=mouse.x>b.x-b.w/2 && mouse.x<b.x+b.w/2; const withinY=mouse.y>b.y-b.h/2 && mouse.y<b.y+b.h/2; if(withinX && withinY && !b.immovable){draggedObj=b; b.dragging=true; selectedBlock=b; break;}}
+      if(!draggedObj){
+        for(let i=slices.length-1;i>=0;i--){const s=slices[i]; if(Math.hypot(mouse.x-s.x,mouse.y-s.y)<=s.r){draggedObj=s; s.dragging=true; selectedBlock=null; break;}}
+      }
+      if(!draggedObj && orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){draggedObj=orange; orange.dragging=true; selectedBlock=null;}
+    } else if(UI.mode==='draw' && orange.visible && Math.hypot(mouse.x-orange.x,mouse.y-orange.y)<=orange.r){
+      const local={x:mouse.x-orange.x,y:mouse.y-orange.y}; currentStroke=[local]; orange.strokes.push(currentStroke);
+    }
+  });
+  canvas.addEventListener('mousemove',e=>{const prevX=mouse.x, prevY=mouse.y; mouse.x=e.clientX; mouse.y=e.clientY;
+    if(blackHole.dragging){blackHole.x=mouse.x-blackHole.offsetX; blackHole.y=mouse.y-blackHole.offsetY;}
+    if(draggedObj && draggedObj.dragging){const dx=mouse.x-prevX, dy=mouse.y-prevY; draggedObj.x+=dx; draggedObj.y+=dy; if(draggedObj===orange){orange.angle+=Math.atan2(dy,dx);} else {draggedObj.vx=0; draggedObj.vy=0;}}
+    if(UI.mode==='draw' && currentStroke){const local={x:mouse.x-orange.x, y:mouse.y-orange.y}; currentStroke.push(local);}    
+  });
+  canvas.addEventListener('mouseup',e=>{mouse.down=false; if(blackHole.dragging){blackHole.dragging=false;}
+    if(draggedObj){draggedObj.dragging=false; draggedObj=null; return;}
+    if(UI.mode==='draw'){currentStroke=null;}
+    const clickX=e.clientX, clickY=e.clientY; const distToOrange=Math.hypot(clickX-orange.x,clickY-orange.y);
+    if(UI.mode==='sword'){
+      if(orange.visible && distToOrange<=orange.r){createSlices(orange.x,orange.y); orange.visible=false; sounds.slice.play();}
+    } else if(UI.mode==='bandAid'){
+      // Remove all slices and restore orange
+      if(slices.length>0){slices.length=0; orange.visible=true; sounds.slice.play();}
+    } else if(UI.mode==='racket'){
+      const impulse=5;
+      slices.forEach(s=>{const d=Math.hypot(s.x-clickX,s.y-clickY); if(d<100){const angle=Math.atan2(s.y-clickY,s.x-clickX); s.vx+=Math.cos(angle)*impulse; s.vy+=Math.sin(angle)*impulse;}});
+      if(orange.visible && distToOrange<100){const angle=Math.atan2(orange.y-clickY,orange.x-clickX); orange.vx+=Math.cos(angle)*impulse/orange.mass; orange.vy+=Math.sin(angle)*impulse/orange.mass; orange.angularVel+=(Math.random()-0.5)*0.2;}
+      sounds.racket.play();
+    } else if(UI.mode==='powerRacket'){
+      const impulse=12;
+      slices.forEach(s=>{const d=Math.hypot(s.x-clickX,s.y-clickY); if(d<150){const angle=Math.atan2(s.y-clickY,s.x-clickX); s.vx+=Math.cos(angle)*impulse; s.vy+=Math.sin(angle)*impulse;}});
+      if(orange.visible && distToOrange<150){const angle=Math.atan2(orange.y-clickY,orange.x-clickX); orange.vx+=Math.cos(angle)*impulse/orange.mass; orange.vy+=Math.sin(angle)*impulse/orange.mass; orange.angularVel+=(Math.random()-0.5)*0.4;}
+      sounds.powerRacket.play();
+    } else if(UI.mode==='delete'){
+      let blockRemoved=false;
+      for(let i=blocks.length-1;i>=0;i--){const b=blocks[i]; if(clickX>b.x-b.w/2 && clickX<b.x+b.w/2 && clickY>b.y-b.h/2 && clickY<b.y+b.h/2){blocks.splice(i,1); blockRemoved=true; break;}}
+      if(!blockRemoved){
+        for(let i=slices.length-1;i>=0;i--){const s=slices[i]; if(Math.hypot(clickX-s.x,clickY-s.y)<=s.r){blocks.forEach(b=>b.immovable=true); break;}}
       }
     }
   });
-  canvas.addEventListener('mousemove',e=>{
-    const prevX=mouse.x, prevY=mouse.y;
-    mouse.x=e.clientX; mouse.y=e.clientY;
-    if(blackHole.dragging){blackHole.x=mouse.x-blackHole.offsetX; blackHole.y=mouse.y-blackHole.offsetY;}
-    if(draggedObj && draggedObj.dragging){
-      // make the object follow the cursor exactly
-      draggedObj.x=mouse.x;
-      draggedObj.y=mouse.y;
-      if(draggedObj===orange){orange.angle+=Math.atan2(mouse.y-prevY,mouse.x-prevX);} else {draggedObj.vx=0; draggedObj.vy=0;}
-    }
-  });
-  canvas.addEventListener('mouseup',e=>{
-    mouse.down=false;
-    if(blackHole.dragging){blackHole.dragging=false;}
-    if(draggedObj){draggedObj.dragging=false; draggedObj=null;}
-  });
-
-  // ---------- Slice creation (simple) ----------
   function createSlices(cx,cy){
     const count = orange.isDiamond ? 12 : 8;
     for(let i=0;i<count;i++){
@@ -156,64 +381,131 @@
         angle:0,
         angularVel:(Math.random()-0.5)*0.1,
         dragging:false,
+        name:orange.name,
+        mass:1,
         color:orange.color,
         isDiamond:isDiamondSlice,
         draw(){
           ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle);
           ctx.fillStyle=this.color; ctx.beginPath(); ctx.arc(0,0,this.r,0,Math.PI*2); ctx.fill();
-          ctx.restore();
+          if(this.isDiamond){ctx.fillStyle='#555'; ctx.fillRect(-this.r/2,-this.r-5,this.r,5); ctx.fillStyle='#000'; ctx.fillRect(-this.r/3,-this.r/2, this.r/3,3); ctx.fillRect(this.r/6,-this.r/2, this.r/3,3);} else {ctx.fillStyle='#000'; ctx.fillRect(-this.r/3,-this.r/4, this.r/3,3); ctx.fillRect(this.r/6,-this.r/4, this.r/3,3);}
+          ctx.beginPath(); ctx.arc(0,0,this.r/3,0,Math.PI); ctx.stroke();
+          if(this.name){ctx.fillStyle='#000'; ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.fillText(this.name,0,-this.r-5);}          ctx.restore();
         }
       });
     }
   }
-
-  // ---------- Main loop ----------
-  function mainLoop(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+  function circleRectCollision(circle,rect){
+    const distX=Math.abs(circle.x-rect.x);
+    const distY=Math.abs(circle.y-rect.y);
+    if(distX>rect.w/2+circle.r) return false;
+    if(distY>rect.h/2+circle.r) return false;
+    if(distX<=rect.w/2) return true;
+    if(distY<=rect.h/2) return true;
+    const dx=distX-rect.w/2;
+    const dy=distY-rect.h/2;
+    return (dx*dx+dy*dy<=circle.r*circle.r);
+  }
+  function resolveCircleRect(circle,rect){
+    // Simple push-out: move circle back along the smallest penetration axis
+    const left=rect.x-rect.w/2;
+    const right=rect.x+rect.w/2;
+    const top=rect.y-rect.h/2;
+    const bottom=rect.y+rect.h/2;
+    let dx=0, dy=0;
+    if(circle.x<left) dx=left-circle.x;
+    else if(circle.x>right) dx=right-circle.x;
+    if(circle.y<top) dy=top-circle.y;
+    else if(circle.y>bottom) dy=bottom-circle.y;
+    // If inside both ranges, choose the axis with minimal overlap
+    if(dx===0 && dy===0){
+      const overlapX=Math.min(circle.x-left, right-circle.x);
+      const overlapY=Math.min(circle.y-top, bottom-circle.y);
+      if(overlapX<overlapY) dx = (circle.x-left<right-circle.x)? -overlapX: overlapX;
+      else dy = (circle.y-top<bottom-circle.y)? -overlapY: overlapY;
+    }
+    circle.x+=dx;
+    circle.y+=dy;
+    circle.vx=0; circle.vy=0;
+  }
+  function updateSlices(){
+    for(const s of slices){
+      if(!s.dragging){
+        s.x+=s.vx; s.y+=s.vy; s.vy+=0.1; s.angle+=s.angularVel;
+        // wall bounds
+        if(s.x-s.r<0){s.x=s.r; s.vx*=-0.8;}
+        if(s.x+s.r>canvas.width){s.x=canvas.width-s.r; s.vx*=-0.8;}
+        if(s.y-s.r<0){s.y=s.r; s.vy*=-0.8;}
+        if(s.y+s.r>canvas.height){s.y=canvas.height-s.r; s.vy*=-0.8;}
+        // black hole attraction
+        if(blackHole.enabled){
+          const dx=blackHole.x-s.x, dy=blackHole.y-s.y;
+          const dist=Math.hypot(dx,dy);
+          if(dist>0){
+            const ax=dx/dist*blackHole.strength;
+            const ay=dy/dist*blackHole.strength;
+            s.vx+=ax; s.vy+=ay;
+          }
+        }
+        // block collision
+        for(const b of blocks){
+          if(circleRectCollision(s,b)) resolveCircleRect(s,b);
+        }
+      }
+    }
+  }
+  function updateOrange(){
+    if(!orange.dragging && orange.visible){
+      if(UI.loop) orange.vx=2*orange.speedMultiplier;
+      orange.x+=orange.vx; orange.y+=orange.vy; orange.vy+=0.1; orange.angle+=orange.angularVel;
+      // wall bounds
+      if(orange.x-orange.r<0){orange.x=orange.r; orange.vx*=-0.8;}
+      if(orange.x+orange.r>canvas.width){orange.x=canvas.width-orange.r; orange.vx*=-0.8;}
+      if(orange.y-orange.r<0){orange.y=orange.r; orange.vy*=-0.8;}
+      if(orange.y+orange.r>canvas.height){orange.y=canvas.height-orange.r; orange.vy*=-0.8;}
+      // black hole attraction
+      if(blackHole.enabled){
+        const dx=blackHole.x-orange.x, dy=blackHole.y-orange.y;
+        const dist=Math.hypot(dx,dy);
+        if(dist>0){
+          const ax=dx/dist*blackHole.strength;
+          const ay=dy/dist*blackHole.strength;
+          orange.vx+=ax; orange.vy+=ay;
+        }
+      }
+      // block collision (make blocks block the character)
+      for(const b of blocks){
+        if(circleRectCollision(orange,b)) resolveCircleRect(orange,b);
+      }
+    }
+  }
+  function drawBlackHole(){
     if(blackHole.enabled){
       ctx.save();
-      ctx.translate(blackHole.x,blackHole.y);
-      ctx.fillStyle='rgba(0,0,0,0.5)';
       ctx.beginPath();
-      ctx.arc(0,0,blackHole.radius,0,Math.PI*2);
+      ctx.arc(blackHole.x,blackHole.y,blackHole.radius,0,Math.PI*2);
+      ctx.fillStyle='rgba(0,0,0,0.5)';
       ctx.fill();
+      ctx.strokeStyle='white';
+      ctx.lineWidth=2;
+      ctx.stroke();
       ctx.restore();
     }
-    // Attraction toward black hole
-    if(blackHole.enabled){
-      const attract=obj=>{
-        const dx=blackHole.x-obj.x, dy=blackHole.y-obj.y;
-        const dist=Math.hypot(dx,dy);
-        if(dist<1) return;
-        const force=blackHole.strength*obj.mass;
-        obj.vx+=dx/dist*force;
-        obj.vy+=dy/dist*force;
-      };
-      attract(orange);
-      slices.forEach(attract);
-    }
-    // Update positions
-    orange.x+=orange.vx; orange.y+=orange.vy; orange.angle+=orange.angularVel;
-    slices.forEach(s=>{
-      s.x+=s.vx; s.y+=s.vy; s.angle+=s.angularVel;
-      s.vy+=GRAVITY; // gravity for slices
-    });
-    // Loop movement for orange
-    if(UI.loop){
-      orange.x+=orange.speedMultiplier*2;
-      if(orange.x - orange.r > canvas.width) orange.x = -orange.r;
-    }
+  }
+  function gameLoop(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(bgImage) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
+    drawBlackHole();
     orange.draw();
     slices.forEach(s=>s.draw());
-    saveGame();
-    requestAnimationFrame(mainLoop);
+    blocks.forEach(b=>b.draw());
+    cup.draw();
+    if(hoop.active){ctx.save(); ctx.fillStyle='rgba(255,215,0,0.6)'; ctx.beginPath(); ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
+    updateSlices();
+    updateOrange();
+    requestAnimationFrame(gameLoop);
   }
-
-  loadGame();
-  // Center orange on load before showing UI
-  orange.x=canvas.width/2; orange.y=canvas.height/2;
-  // UI remains hidden until start button pressed
-  requestAnimationFrame(mainLoop);
+  requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
