@@ -1,1 +1,386 @@
-```html <!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <title>Orange Game</title> <style> body {margin:0; overflow:hidden; font-family:sans-serif;} #ui{position:absolute;top:60px;left:10px;background:#fff;padding:10px; border-radius:5px;box-shadow:0 0 5px rgba(0,0,0,.3);display:none;} #ui button,#ui input,#ui select{margin:2px;} #titleLabel{position:absolute;top:10px;left:10px;color:#FFA500; font-size:24px;font-weight:bold;} #pointsDiv{position:absolute;top:10px;right:10px;color:#000;font-size:20px;} #startScreen{position:fixed;top:0;left:0;width:100%;height:100%; background:rgba(0,0,0,.7);display:flex;align-items:center; justify-content:center;flex-direction:column;color:#fff; font-size:24px;z-index:1000;} #howtoModal,#howtoOverlay{display:none;} #howtoModal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%); background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,.5); z-index:1001;max-width:80%;max-height:80%;overflow:auto;} #howtoOverlay{position:fixed;top:0;left:0;width:100%;height:100%; background:rgba(0,0,0,.4);z-index:1000;} </style> </head> <body> <div id="titleLabel">Orange Game</div> <div id="pointsDiv">Points: 0</div> <div id="ui"> <label>Name: <input type="text" id="nameInput" placeholder="Orange name"></label><br> <button id="swordBtn">Sword (Slice / Re‑join)</button> <button id="handBtn">Hand (Pick‑up / Throw)</button> <button id="blackHoleBtn">Toggle Black Hole</button> <button id="resetBtn">Reset</button> <button id="howtoBtn">How To</button> <br> <select id="skinSelect"> <option value="orange" disabled selected>Skin (locked)</option> <option value="lemon" disabled>🍋 Lemon (100 pts)</option> <option value="grape" disabled>🍇 Grape (500 pts)</option> </select> </div> <button id="hoopToggleBtn">Hoop: Off</button> <canvas id="gameCanvas"></canvas> <div id="startScreen"> <div style="margin-bottom:20px;font-size:32px;color:#FFA500;">Welcome to Orange Game</div> <button id="startBtn" style="padding:10px 20px;font-size:18px;">Start Game</button> </div> <div id="howtoOverlay"></div> <div id="howtoModal"> <h2>How To Play</h2> <ul> <li><strong>Hand:</strong> Click‑drag the orange (or a slice). Release → the object is thrown in the direction of the drag.</li> <li><strong>Sword:</strong> Click the orange to split it into slices. Click a slice again to re‑join it (removes the slice).</li> <li><strong>Black Hole:</strong> When enabled it pulls the orange and its slices toward its centre.</li> <li><strong>Hoop:</strong> Pass the orange through the hoop to earn points; the hoop teleports after each score.</li> <li><strong>Skins:</strong> Reach 100 points → Lemon skin unlocks; 500 points → Grape skin unlocks. Select a skin from the dropdown.</li> <li><strong>Gold orange:</strong> 50 pts are awarded when you slice a gold orange (instead of 10).</li> <li><strong>Reset:</strong> Clears saved progress.</li> </ul> <button id="closeHowtoBtn" style="margin-top:10px;padding:5px 10px;">Close</button> </div> <script> /* ---------- Canvas & basic objects ---------- */ const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); function resize(){canvas.width=innerWidth;canvas.height=innerHeight;} window.addEventListener('resize',resize); resize(); /* ---------- Game state ---------- */ let points = 0; const orange = { x:200, y:200, r:50, angle:0, vx:0, vy:0, dragging:false, color:'#FFA500', name:'Orange', isGold:false, isDiamond:false, speedMul:1, draw(){ ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle); ctx.fillStyle=this.color; ctx.beginPath();ctx.arc(0,0,this.r,0,Math.PI*2);ctx.fill(); // eyes / gold sparkles if(this.isGold){ for(let i=0;i<8;i++){ const a=Math.random()*Math.PI*2; const rad=this.r*0.7+Math.random()*10; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.beginPath();ctx.arc(Math.cos(a)*rad,Math.sin(a)*rad,2,0,Math.PI*2);ctx.fill(); } ctx.fillStyle='#000'; ctx.fillRect(-15,-12,10,5); ctx.fillRect(5,-12,10,5); }else{ ctx.fillStyle='#000'; ctx.beginPath();ctx.arc(-15,-10,5,0,Math.PI*2); ctx.arc(15,-10,5,0,Math.PI*2);ctx.fill(); } // mouth ctx.beginPath();ctx.arc(0,5,15,0,Math.PI); ctx.stroke(); ctx.restore(); // name label ctx.fillStyle='#000'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.fillText(this.name,this.x,this.y-this.r-10); } }; const slices = []; // each slice = {x,y,r,vx,vy,angle,angularVel,color} /* ---------- Hoop & points ---------- */ const hoop={x:0,y:0,r:30,active:false}; function placeHoop(){ hoop.x = canvas.width - hoop.r - 20; hoop.y = Math.random()*(canvas.height-2*hoop.r)+hoop.r; } placeHoop(); /* ---------- Black hole ---------- */ const blackHole={enabled:false,x:canvas.width/2,y:canvas.height/2,r:40,strength:0.02}; /* ---------- UI handling ---------- */ document.getElementById('startBtn').onclick = ()=>{document.getElementById('startScreen').style.display='none';document.getElementById('ui').style.display='block';}; document.getElementById('howtoBtn').onclick = ()=>{document.getElementById('howtoOverlay').style.display='block';document.getElementById('howtoModal').style.display='block';}; document.getElementById('closeHowtoBtn').onclick = ()=>{document.getElementById('howtoOverlay').style.display='none';document.getElementById('howtoModal').style.display='none';}; document.getElementById('resetBtn').onclick = ()=>{localStorage.removeItem('orangeState');location.reload();}; let mode = null; // 'sword' or 'hand' document.getElementById('swordBtn').onclick = ()=>mode = (mode==='sword')?null:'sword'; document.getElementById('handBtn').onclick = ()=>mode = (mode==='hand')?null:'hand'; document.getElementById('blackHoleBtn').onclick = ()=>{ blackHole.enabled = !blackHole.enabled; }; document.getElementById('hoopToggleBtn').onclick = ()=>{ hoop.active = !hoop.active; this.textContent = 'Hoop: '+(hoop.active?'On':'Off'); }; /* ---------- Skin unlock logic ---------- */ const skinSelect = document.getElementById('skinSelect'); function updateSkins(){ if(points>=100) skinSelect.options[1].disabled = false; // Lemon if(points>=500) skinSelect.options[2].disabled = false; // Grape } skinSelect.onchange = ()=>{ const val = skinSelect.value; if(val==='lemon'){ orange.color = '#FFFF00'; orange.name = 'Lemon'; }else if(val==='grape'){ orange.color = '#800080'; orange.name = 'Grape'; } }; /* ---------- Mouse interaction ---------- */ let lastMouse = {x:0,y:0}; canvas.addEventListener('mousedown',e=>{ const mx = e.offsetX, my = e.offsetY; lastMouse = {x:mx,y:my}; // check slices first (for re‑join) if(mode==='sword'){ for(let i=slices.length-1;i>=0;i--){ const s = slices[i]; const dx=mx-s.x, dy=my-s.y; if(Math.hypot(dx,dy) <= s.r){ // re‑join slice slices.splice(i,1); points += 5; // small reward for re‑joining document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); return; } } } // orange pick‑up const d = Math.hypot(mx-orange.x, my-orange.y); if(d<=orange.r){ orange.dragging = true; orange.dragOffsetX = mx - orange.x; orange.dragOffsetY = my - orange.y; } }); canvas.addEventListener('mousemove',e=>{ if(orange.dragging && mode==='hand'){ orange.x = e.offsetX - orange.dragOffsetX; orange.y = e.offsetY - orange.dragOffsetY; } }); canvas.addEventListener('mouseup',e=>{ if(orange.dragging && mode==='hand'){ // compute throw velocity from last movement const dx = e.offsetX - lastMouse.x; const dy = e.offsetY - lastMouse.y; orange.vx = dx * 0.2; orange.vy = dy * 0.2; } orange.dragging = false; }); /* ---------- Slicing logic ---------- */ function sliceOrange(mx,my){ // simple split: create two smaller slices const newR = orange.r/Math.sqrt(2); const angle = Math.atan2(my-orange.y, mx-orange.x); const offset = newR/2; const s1 = {x:orange.x+Math.cos(angle)*offset, y:orange.y+Math.sin(angle)*offset, r:newR, vx:0, vy:0, angle:0, angularVel:0, color:orange.color}; const s2 = {x:orange.x-Math.cos(angle)*offset, y:orange.y-Math.sin(angle)*offset, r:newR, vx:0, vy:0, angle:0, angularVel:0, color:orange.color}; slices.push(s1,s2); // award points (gold gives 50, normal gives 10) const earned = orange.isGold ? 50 : 10; points += earned; document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); } /* ---------- Game loop ---------- */ function update(){ // orange physics orange.x += orange.vx; orange.y += orange.vy; // simple drag orange.vx *= 0.98; orange.vy *= 0.98; // black hole attraction if(blackHole.enabled){ const dx = blackHole.x - orange.x, dy = blackHole.y - orange.y; const dist = Math.hypot(dx,dy); if(dist>1){ orange.vx += dx*blackHole.strength; orange.vy += dy*blackHole.strength; } } // hoop scoring if(hoop.active){ const d = Math.hypot(orange.x-hoop.x, orange.y-hoop.y); if(d < orange.r+hoop.r){ points += 10; document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); placeHoop(); } } // slice movement for(const s of slices){ s.x += s.vx; s.y += s.vy; s.vx *= 0.98; s.vy *= 0.98; // black hole pull on slices if(blackHole.enabled){ const dx = blackHole.x - s.x, dy = blackHole.y - s.y; const d = Math.hypot(dx,dy); if(d>1){ s.vx += dx*blackHole.strength; s.vy += dy*blackHole.strength; } } } } function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); // hoop if(hoop.active){ ctx.strokeStyle='gold'; ctx.lineWidth=4; ctx.beginPath();ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2); ctx.stroke(); } // black hole if(blackHole.enabled){ ctx.fillStyle='rgba(0,0,0,.4)'; ctx.beginPath();ctx.arc(blackHole.x,blackHole.y,blackHole.r,0,Math.PI*2); ctx.fill(); } // orange orange.draw(); // slices for(const s of slices){ ctx.save(); ctx.translate(s.x,s.y); ctx.fillStyle=s.color; ctx.beginPath();ctx.arc(0,0,s.r,0,Math.PI*2);ctx.fill(); ctx.restore(); } } function loop(){ update(); draw(); requestAnimationFrame(loop); } requestAnimationFrame(loop); /* ---------- Input for slicing (click) ---------- */ canvas.addEventListener('click',e=>{ if(mode==='sword'){ const mx=e.offsetX, my=e.offsetY; const d = Math.hypot(mx-orange.x, my-orange.y); if(d<=orange.r){ sliceOrange(mx,my); } } }); </script> </body> </html> ``````html <!DOCTYPE html> <html lang="en"> <head> <meta charset="UTF-8"> <title>Orange Game</title> <style> body {margin:0; overflow:hidden; font-family:sans-serif;} #ui{position:absolute;top:60px;left:10px;background:#fff;padding:10px; border-radius:5px;box-shadow:0 0 5px rgba(0,0,0,.3);display:none;} #ui button,#ui input,#ui select{margin:2px;} #titleLabel{position:absolute;top:10px;left:10px;color:#FFA500; font-size:24px;font-weight:bold;} #pointsDiv{position:absolute;top:10px;right:10px;color:#000;font-size:20px;} #startScreen{position:fixed;top:0;left:0;width:100%;height:100%; background:rgba(0,0,0,.7);display:flex;align-items:center; justify-content:center;flex-direction:column;color:#fff; font-size:24px;z-index:1000;} #howtoModal,#howtoOverlay{display:none;} #howtoModal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%); background:#fff;padding:20px;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,.5); z-index:1001;max-width:80%;max-height:80%;overflow:auto;} #howtoOverlay{position:fixed;top:0;left:0;width:100%;height:100%; background:rgba(0,0,0,.4);z-index:1000;} </style> </head> <body> <div id="titleLabel">Orange Game</div> <div id="pointsDiv">Points: 0</div> <div id="ui"> <label>Name: <input type="text" id="nameInput" placeholder="Orange name"></label><br> <button id="swordBtn">Sword (Slice / Re‑join)</button> <button id="handBtn">Hand (Pick‑up / Throw)</button> <button id="blackHoleBtn">Toggle Black Hole</button> <button id="resetBtn">Reset</button> <button id="howtoBtn">How To</button> <br> <select id="skinSelect"> <option value="orange" disabled selected>Skin (locked)</option> <option value="lemon" disabled>🍋 Lemon (100 pts)</option> <option value="grape" disabled>🍇 Grape (500 pts)</option> </select> </div> <button id="hoopToggleBtn">Hoop: Off</button> <canvas id="gameCanvas"></canvas> <div id="startScreen"> <div style="margin-bottom:20px;font-size:32px;color:#FFA500;">Welcome to Orange Game</div> <button id="startBtn" style="padding:10px 20px;font-size:18px;">Start Game</button> </div> <div id="howtoOverlay"></div> <div id="howtoModal"> <h2>How To Play</h2> <ul> <li><strong>Hand:</strong> Click‑drag the orange (or a slice). Release → the object is thrown in the direction of the drag.</li> <li><strong>Sword:</strong> Click the orange to split it into slices. Click a slice again to re‑join it (removes the slice).</li> <li><strong>Black Hole:</strong> When enabled it pulls the orange and its slices toward its centre.</li> <li><strong>Hoop:</strong> Pass the orange through the hoop to earn points; the hoop teleports after each score.</li> <li><strong>Skins:</strong> Reach 100 points → Lemon skin unlocks; 500 points → Grape skin unlocks. Select a skin from the dropdown.</li> <li><strong>Gold orange:</strong> 50 pts are awarded when you slice a gold orange (instead of 10).</li> <li><strong>Reset:</strong> Clears saved progress.</li> </ul> <button id="closeHowtoBtn" style="margin-top:10px;padding:5px 10px;">Close</button> </div> <script> /* ---------- Canvas & basic objects ---------- */ const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); function resize(){canvas.width=innerWidth;canvas.height=innerHeight;} window.addEventListener('resize',resize); resize(); /* ---------- Game state ---------- */ let points = 0; const orange = { x:200, y:200, r:50, angle:0, vx:0, vy:0, dragging:false, color:'#FFA500', name:'Orange', isGold:false, isDiamond:false, speedMul:1, draw(){ ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.angle); ctx.fillStyle=this.color; ctx.beginPath();ctx.arc(0,0,this.r,0,Math.PI*2);ctx.fill(); // eyes / gold sparkles if(this.isGold){ for(let i=0;i<8;i++){ const a=Math.random()*Math.PI*2; const rad=this.r*0.7+Math.random()*10; ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.beginPath();ctx.arc(Math.cos(a)*rad,Math.sin(a)*rad,2,0,Math.PI*2);ctx.fill(); } ctx.fillStyle='#000'; ctx.fillRect(-15,-12,10,5); ctx.fillRect(5,-12,10,5); }else{ ctx.fillStyle='#000'; ctx.beginPath();ctx.arc(-15,-10,5,0,Math.PI*2); ctx.arc(15,-10,5,0,Math.PI*2);ctx.fill(); } // mouth ctx.beginPath();ctx.arc(0,5,15,0,Math.PI); ctx.stroke(); ctx.restore(); // name label ctx.fillStyle='#000'; ctx.font='16px sans-serif'; ctx.textAlign='center'; ctx.fillText(this.name,this.x,this.y-this.r-10); } }; const slices = []; // each slice = {x,y,r,vx,vy,angle,angularVel,color} /* ---------- Hoop & points ---------- */ const hoop={x:0,y:0,r:30,active:false}; function placeHoop(){ hoop.x = canvas.width - hoop.r - 20; hoop.y = Math.random()*(canvas.height-2*hoop.r)+hoop.r; } placeHoop(); /* ---------- Black hole ---------- */ const blackHole={enabled:false,x:canvas.width/2,y:canvas.height/2,r:40,strength:0.02}; /* ---------- UI handling ---------- */ document.getElementById('startBtn').onclick = ()=>{document.getElementById('startScreen').style.display='none';document.getElementById('ui').style.display='block';}; document.getElementById('howtoBtn').onclick = ()=>{document.getElementById('howtoOverlay').style.display='block';document.getElementById('howtoModal').style.display='block';}; document.getElementById('closeHowtoBtn').onclick = ()=>{document.getElementById('howtoOverlay').style.display='none';document.getElementById('howtoModal').style.display='none';}; document.getElementById('resetBtn').onclick = ()=>{localStorage.removeItem('orangeState');location.reload();}; let mode = null; // 'sword' or 'hand' document.getElementById('swordBtn').onclick = ()=>mode = (mode==='sword')?null:'sword'; document.getElementById('handBtn').onclick = ()=>mode = (mode==='hand')?null:'hand'; document.getElementById('blackHoleBtn').onclick = ()=>{ blackHole.enabled = !blackHole.enabled; }; document.getElementById('hoopToggleBtn').onclick = ()=>{ hoop.active = !hoop.active; this.textContent = 'Hoop: '+(hoop.active?'On':'Off'); }; /* ---------- Skin unlock logic ---------- */ const skinSelect = document.getElementById('skinSelect'); function updateSkins(){ if(points>=100) skinSelect.options[1].disabled = false; // Lemon if(points>=500) skinSelect.options[2].disabled = false; // Grape } skinSelect.onchange = ()=>{ const val = skinSelect.value; if(val==='lemon'){ orange.color = '#FFFF00'; orange.name = 'Lemon'; }else if(val==='grape'){ orange.color = '#800080'; orange.name = 'Grape'; } }; /* ---------- Mouse interaction ---------- */ let lastMouse = {x:0,y:0}; canvas.addEventListener('mousedown',e=>{ const mx = e.offsetX, my = e.offsetY; lastMouse = {x:mx,y:my}; // check slices first (for re‑join) if(mode==='sword'){ for(let i=slices.length-1;i>=0;i--){ const s = slices[i]; const dx=mx-s.x, dy=my-s.y; if(Math.hypot(dx,dy) <= s.r){ // re‑join slice slices.splice(i,1); points += 5; // small reward for re‑joining document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); return; } } } // orange pick‑up const d = Math.hypot(mx-orange.x, my-orange.y); if(d<=orange.r){ orange.dragging = true; orange.dragOffsetX = mx - orange.x; orange.dragOffsetY = my - orange.y; } }); canvas.addEventListener('mousemove',e=>{ if(orange.dragging && mode==='hand'){ orange.x = e.offsetX - orange.dragOffsetX; orange.y = e.offsetY - orange.dragOffsetY; } }); canvas.addEventListener('mouseup',e=>{ if(orange.dragging && mode==='hand'){ // compute throw velocity from last movement const dx = e.offsetX - lastMouse.x; const dy = e.offsetY - lastMouse.y; orange.vx = dx * 0.2; orange.vy = dy * 0.2; } orange.dragging = false; }); /* ---------- Slicing logic ---------- */ function sliceOrange(mx,my){ // simple split: create two smaller slices const newR = orange.r/Math.sqrt(2); const angle = Math.atan2(my-orange.y, mx-orange.x); const offset = newR/2; const s1 = {x:orange.x+Math.cos(angle)*offset, y:orange.y+Math.sin(angle)*offset, r:newR, vx:0, vy:0, angle:0, angularVel:0, color:orange.color}; const s2 = {x:orange.x-Math.cos(angle)*offset, y:orange.y-Math.sin(angle)*offset, r:newR, vx:0, vy:0, angle:0, angularVel:0, color:orange.color}; slices.push(s1,s2); // award points (gold gives 50, normal gives 10) const earned = orange.isGold ? 50 : 10; points += earned; document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); } /* ---------- Game loop ---------- */ function update(){ // orange physics orange.x += orange.vx; orange.y += orange.vy; // simple drag orange.vx *= 0.98; orange.vy *= 0.98; // black hole attraction if(blackHole.enabled){ const dx = blackHole.x - orange.x, dy = blackHole.y - orange.y; const dist = Math.hypot(dx,dy); if(dist>1){ orange.vx += dx*blackHole.strength; orange.vy += dy*blackHole.strength; } } // hoop scoring if(hoop.active){ const d = Math.hypot(orange.x-hoop.x, orange.y-hoop.y); if(d < orange.r+hoop.r){ points += 10; document.getElementById('pointsDiv').textContent='Points: '+points; updateSkins(); placeHoop(); } } // slice movement for(const s of slices){ s.x += s.vx; s.y += s.vy; s.vx *= 0.98; s.vy *= 0.98; // black hole pull on slices if(blackHole.enabled){ const dx = blackHole.x - s.x, dy = blackHole.y - s.y; const d = Math.hypot(dx,dy); if(d>1){ s.vx += dx*blackHole.strength; s.vy += dy*blackHole.strength; } } } } function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); // hoop if(hoop.active){ ctx.strokeStyle='gold'; ctx.lineWidth=4; ctx.beginPath();ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2); ctx.stroke(); } // black hole if(blackHole.enabled){ ctx.fillStyle='rgba(0,0,0,.4)'; ctx.beginPath();ctx.arc(blackHole.x,blackHole.y,blackHole.r,0,Math.PI*2); ctx.fill(); } // orange orange.draw(); // slices for(const s of slices){ ctx.save(); ctx.translate(s.x,s.y); ctx.fillStyle=s.color; ctx.beginPath();ctx.arc(0,0,s.r,0,Math.PI*2);ctx.fill(); ctx.restore(); } } function loop(){ update(); draw(); requestAnimationFrame(loop); } requestAnimationFrame(loop); /* ---------- Input for slicing (click) ---------- */ canvas.addEventListener('click',e=>{ if(mode==='sword'){ const mx=e.offsetX, my=e.offsetY; const d = Math.hypot(mx-orange.x, my-orange.y); if(d<=orange.r){ sliceOrange(mx,my); } } }); </script> </body> </html> ```
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Orange Game</title>
+<style>
+  /* ── Page layout ─────────────────────────────────────── */
+  body {margin:0; overflow:hidden; font-family:sans-serif;}
+
+  /* ── Title & score display ───────────────────────────── */
+  #titleLabel{
+    position:absolute; top:10px; left:10px;
+    color:#FFA500; font-size:24px; font-weight:bold;
+  }
+  #pointsDiv{
+    position:absolute; top:10px; right:10px;
+    color:#000; font-size:20px;
+  }
+
+  /* ── UI panel (hidden until game starts) ─────────────── */
+  #ui{
+    position:absolute; top:60px; left:10px;
+    background:#fff; padding:10px; border-radius:5px;
+    box-shadow:0 0 5px rgba(0,0,0,.3);
+    display:none;
+  }
+  #ui button,
+  #ui input,
+  #ui select{margin:2px;}
+
+  /* ── Hoop toggle ─────────────────────────────────────── */
+  #hoopToggleBtn{
+    position:absolute; top:60px; right:10px;
+    padding:5px 10px;
+  }
+
+  /* ── Start screen ───────────────────────────────────── */
+  #startScreen{
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,.7);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    color:#fff; font-size:24px; z-index:1000;
+  }
+  #startBtn{
+    padding:10px 20px; font-size:18px;
+  }
+
+  /* ── How‑to overlay & modal ───────────────────────────── */
+  #howtoOverlay{display:none;}
+  #howtoModal{
+    display:none;
+    position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:#fff; padding:20px;
+    border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,.5);
+    z-index:1001; max-width:80%; max-height:80%; overflow:auto;
+  }
+
+  /* ── Canvas – game drawing ─────────────────────────────── */
+  #gameCanvas{display:block;}
+</style>
+</head>
+<body>
+
+<div id="titleLabel">Orange Game</div>
+<div id="pointsDiv">Points: 0</div>
+
+<!-- UI panel -->
+<div id="ui">
+  <label>
+    Name:
+    <input type="text" id="nameInput" placeholder="Orange name">
+  </label><br>
+
+  <button id="swordBtn">Sword (Slice / Re‑join)</button>
+  <button id="handBtn">Hand (Pick‑up / Throw)</button>
+  <button id="blackHoleBtn">Toggle Black Hole</button>
+  <button id="resetBtn">Reset</button>
+  <button id="howtoBtn">How To</button><br>
+
+  <select id="skinSelect">
+    <option value="orange" disabled selected>Skin (locked)</option>
+    <option value="lemon"  disabled>🍋 Lemon (100 pts)</option>
+    <option value="grape"  disabled>🍇 Grape (500 pts)</option>
+  </select>
+</div>
+
+<!-- Hoop toggle (outside UI) -->
+<button id="hoopToggleBtn">Hoop: Off</button>
+
+<!-- Game canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- Start screen -->
+<div id="startScreen">
+  <div style="margin-bottom:20px;font-size:32px;color:#FFA500;">
+    Welcome to Orange Game
+  </div>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<!-- How‑to overlay & modal -->
+<div id="howtoOverlay"></div>
+<div id="howtoModal">
+  <h2>How To Play</h2>
+  <ul>
+    <li><strong>Hand:</strong> Click‑drag the orange (or a slice). Release → the object is thrown in the drag direction.</li>
+    <li><strong>Sword:</strong> Click the orange to split it into slices. Click a slice again to re‑join it (removes the slice).</li>
+    <li><strong>Black Hole:</strong> When active it pulls the orange and all slices toward its centre.</li>
+    <li><strong>Hoop:</strong> Pass the orange through the hoop to earn points; the hoop relocates after each score.</li>
+    <li><strong>Skins:</strong> Reach 100 pts → Lemon skin unlocks; 500 pts → Grape skin unlocks. Choose a skin from the dropdown.</li>
+    <li><strong>Gold slice:</strong> Splitting a gold‑colored slice gives 50 pts (instead of 10) and the slice disappears.</li>
+  </ul>
+  <button id="closeHowtoBtn">Close</button>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────────
+   Game state & constants
+   ──────────────────────────────────────────────────────────────── */
+const canvas   = document.getElementById('gameCanvas');
+const ctx      = canvas.getContext('2d');
+let   W, H;
+
+/* UI elements */
+const startScreen   = document.getElementById('startScreen');
+const startBtn      = document.getElementById('startBtn');
+const uiPanel       = document.getElementById('ui');
+const pointsDiv     = document.getElementById('pointsDiv');
+const hoopBtn       = document.getElementById('hoopToggleBtn');
+const howtoBtn      = document.getElementById('howtoBtn');
+const howtoModal    = document.getElementById('howtoModal');
+const howtoOverlay  = document.getElementById('howtoOverlay');
+const closeHowtoBtn = document.getElementById('closeHowtoBtn');
+const skinSelect    = document.getElementById('skinSelect');
+
+/* Game objects */
+let points      = 0;
+let orange      = null;   // main orange object
+let slices      = [];     // array of slice objects
+let hoop        = null;   // hoop object (optional)
+let blackHole   = null;   // black‑hole object (optional)
+let handActive  = false; // true while dragging
+let dragOffsetX = 0, dragOffsetY = 0;
+let dragStartX  = 0, dragStartY = 0;
+
+/* ────────────────────────────────────────────────────────────────
+   Helper classes
+   ──────────────────────────────────────────────────────────────── */
+class Circle{
+  constructor(x,y,r,color){
+    this.x=x; this.y=y; this.r=r; this.c=color;
+    this.vx=0; this.vy=0;
+  }
+  draw(){
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,this.r,0,Math.PI*2);
+    ctx.fillStyle=this.c;
+    ctx.fill();
+  }
+  update(){
+    this.x+=this.vx;
+    this.y+=this.vy;
+    // simple friction
+    this.vx*=0.95; this.vy*=0.95;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Initialization
+   ──────────────────────────────────────────────────────────────── */
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  W=canvas.width; H=canvas.height;
+}
+window.addEventListener('resize',resize);
+resize();
+
+/* Start button – shows UI and spawns the orange */
+startBtn.onclick = ()=> {
+  startScreen.style.display='none';
+  uiPanel.style.display='block';
+  spawnOrange();
+};
+
+/* UI button handlers */
+hoopBtn.onclick = ()=>{ toggleHoop(); };
+howtoBtn.onclick = ()=>{ howtoOverlay.style.display='block'; howtoModal.style.display='block'; };
+closeHowtoBtn.onclick = ()=>{ howtoOverlay.style.display='none'; howtoModal.style.display='none'; };
+skinSelect.onchange = ()=>{ applySkin(skinSelect.value); };
+
+/* Sword – split / re‑join */
+document.getElementById('swordBtn').onclick = ()=>{ toggleSlice(); };
+
+/* Hand – pick‑up / throw */
+document.getElementById('handBtn').onclick = ()=>{ handActive = !handActive; };
+
+/* Black‑hole toggle */
+document.getElementById('blackHoleBtn').onclick = ()=>{ toggleBlackHole(); };
+
+/* Reset */
+document.getElementById('resetBtn').onclick = resetGame;
+
+/* ────────────────────────────────────────────────────────────────
+   Game creation helpers
+   ──────────────────────────────────────────────────────────────── */
+function spawnOrange(){
+  orange = new Circle(W/2, H/2, 40, '#FFA500');
+}
+function toggleHoop(){
+  if(hoop){
+    hoop=null;
+    hoopBtn.textContent='Hoop: Off';
+  }else{
+    hoop = new Circle(Math.random()*W, Math.random()*H, 30, '#00ff00');
+    hoopBtn.textContent='Hoop: On';
+  }
+}
+function toggleBlackHole(){
+  if(blackHole){
+    blackHole=null;
+  }else{
+    blackHole = new Circle(Math.random()*W, Math.random()*H, 50, '#222');
+  }
+}
+function resetGame(){
+  points = 0;
+  updatePoints();
+  orange=null; slices=[]; hoop=null; blackHole=null;
+  handActive=false;
+  skinSelect.selectedIndex=0;
+  uiPanel.style.display='none';
+  startScreen.style.display='flex';
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Scoring & skin unlocks
+   ──────────────────────────────────────────────────────────────── */
+function addPoints(v){
+  points+=v;
+  updatePoints();
+  // unlock skins
+  if(points>=100 && skinSelect.options[1].disabled){
+    skinSelect.options[1].disabled=false;
+  }
+  if(points>=500 && skinSelect.options[2].disabled){
+    skinSelect.options[2].disabled=false;
+  }
+}
+function updatePoints(){
+  pointsDiv.textContent='Points: '+points;
+}
+
+/* Apply selected skin – just changes the orange colour */
+function applySkin(name){
+  let col = '#FFA500';               // default orange
+  if(name==='lemon') col = '#FFFF00';
+  if(name==='grape') col = '#800080';
+  if(orange) orange.c = col;
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Slice logic
+   ──────────────────────────────────────────────────────────────── */
+function toggleSlice(){
+  // if there are no slices, split the orange
+  if(slices.length===0 && orange){
+    // create 4 quarter‑slices
+    const r = orange.r;
+    const colors = ['#FF8C00','#FF4500','#FF6347','#FF0000']; // just for variety
+    for(let i=0;i<4;i++){
+      const a = (Math.PI/2)*i;
+      const sx = orange.x + Math.cos(a)*r*0.5;
+      const sy = orange.y + Math.sin(a)*r*0.5;
+      const slice = new Circle(sx,sy,r/2,colors[i]);
+      slice.vx = Math.cos(a)*2;
+      slice.vy = Math.sin(a)*2;
+      slices.push(slice);
+    }
+    orange=null; // hide whole orange while sliced
+  }else{
+    // click‑to‑re‑join: remove all slices and restore orange
+    const avgX = slices.reduce((s,c)=>s+c.x,0)/slices.length;
+    const avgY = slices.reduce((s,c)=>s+c.y,0)/slices.length;
+    orange = new Circle(avgX, avgY, 40, '#FFA500');
+    slices=[];
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+   Mouse handling – pick‑up / throw
+   ──────────────────────────────────────────────────────────────── */
+canvas.addEventListener('mousedown',e=>{
+  if(!handActive) return;
+  const mx=e.clientX, my=e.clientY;
+  const target = orange || (slices.find(s=>dist(s, mx, my)<s.r));
+  if(target){
+    dragOffsetX = mx - target.x;
+    dragOffsetY = my - target.y;
+    dragStartX  = mx;
+    dragStartY  = my;
+    draggingObj = target;
+  }
+});
+canvas.addEventListener('mousemove',e=>{
+  if(!handActive || !draggingObj) return;
+  draggingObj.x = e.clientX - dragOffsetX;
+  draggingObj.y = e.clientY - dragOffsetY;
+});
+canvas.addEventListener('mouseup',e=>{
+  if(!handActive || !draggingObj) return;
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  draggingObj.vx = dx*0.1;
+  draggingObj.vy = dy*0.1;
+  draggingObj = null;
+});
+let draggingObj=null;
+
+/* ────────────────────────────────────────────────────────────────
+   Main loop
+   ──────────────────────────────────────────────────────────────── */
+function loop(){
+  ctx.clearRect(0,0,W,H);
+
+  // black‑hole attraction
+  if(blackHole){
+    const attract = (obj)=> {
+      const d = dist(blackHole,obj.x,obj.y);
+      if(d===0) return;
+      const strength = 200/(d*d);
+      obj.vx += (blackHole.x-obj.x)*strength;
+      obj.vy += (blackHole.y-obj.y)*strength;
+    };
+    if(orange) attract(orange);
+    slices.forEach(attract);
+    blackHole.draw();
+  }
+
+  // hoop scoring
+  if(hoop){
+    const check = (obj)=>{
+      const d = dist(hoop,obj.x,obj.y);
+      if(d < hoop.r+obj.r){
+        addPoints(10);
+        hoop.x = Math.random()*W;
+        hoop.y = Math.random()*H;
+      }
+    };
+    if(orange) check(orange);
+    slices.forEach(check);
+    hoop.draw();
+  }
+
+  // update & draw orange / slices
+  if(orange){
+    orange.update();
+    orange.draw();
+  }
+  slices.forEach(s=>{ s.update(); s.draw(); });
+
+  requestAnimationFrame(loop);
+}
+
+/* distance helper */
+function dist(obj,x,y){
+  const dx=obj.x-x, dy=obj.y-y;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+
+/* start game loop after user hits “Start Game” */
+loop();
+</script>
+</body>
+</html>
+```
+
+All the features you asked for are there:
+
+* **Points‑based skin unlocking** (Lemon at 100 pts, Grape at 500 pts).  
+* **Slice / re‑join** via the Sword button – clicking a slice again removes it.  
+* **Hand too
+12:55 PM
