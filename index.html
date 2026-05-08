@@ -12,8 +12,6 @@
   #titleLabel {position:absolute; top:10px; left:10px; color:#FFA500; font-size:24px; font-weight:bold;}
   #hoopToggleBtn {position:absolute; top:60px; right:10px; padding:5px 10px;}
   #pointsDiv {position:absolute; top:10px; right:10px; color:#000; font-size:20px;}
-  #startScreen {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-size:24px; z-index:1000;}
-  #controlHint {font-size:18px; margin-bottom:15px;}
   #howtoModal {position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:1001; max-width:80%; max-height:80%; overflow:auto; display:none;}
   #howtoModal h2 {margin-top:0;}
   #howtoOverlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:none; z-index:1000;}
@@ -53,14 +51,6 @@
 </div>
 <button id="hoopToggleBtn">Hoop: Off</button>
 <canvas id="gameCanvas"></canvas>
-
-<div id="startScreen">
-  <div id="controlHint">Press <strong>Control</strong> to hide/show tools</div>
-  <div style="margin-bottom:20px; font-size:32px; color:#FFA500;">Welcome to Orange Game</div>
-  <div style="margin-bottom:10px; font-size:20px;" id="menuLine1"></div>
-  <div style="margin-bottom:20px; font-size:20px;" id="menuLine2"></div>
-  <button id="startBtn" style="padding:10px 20px; font-size:18px;">Start Game</button>
-</div>
 
 <div id="howtoOverlay"></div>
 <div id="howtoModal">
@@ -262,7 +252,6 @@
   function startGame(){
     if(gameRunning) return;
     gameRunning = true;
-    document.getElementById('startScreen').style.display='none';
     document.getElementById('ui').style.display='block';
     // Begin the main animation loop if not already started
     if(typeof animate === 'function'){
@@ -273,7 +262,8 @@
       requestAnimationFrame(mainLoop);
     }
   }
-  document.getElementById('startBtn').onclick=startGame;
+  const startBtn=document.getElementById('startBtn');
+  if(startBtn){ startBtn.onclick=startGame; }
   document.getElementById('hoopToggleBtn').onclick=()=>{hoop.active=!hoop.active; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');};
   const speedBtn=document.getElementById('speedToggleBtn');
   const sizeBtn=document.getElementById('sizeToggleBtn');
@@ -286,15 +276,11 @@
     orange.supersize=!orange.supersize;
     orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
   };
-  // Random menu lines
-  const menuPhrases=["Orange you glad I made this game?","This game is un‑peel‑ievable.","Peel the competition!","Citrus vibes only."];
-  document.getElementById('menuLine1').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
-  document.getElementById('menuLine2').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
+  // Random menu lines (now unused)
   // Shape tab handling
   let shapeTabVisible=false; let uiHidden=false;
   window.addEventListener('keydown',e=>{
     if(e.key==='Control' && !e.repeat){
-      // Only allow toggling tools after the game has started
       if(gameRunning){
         uiHidden=!uiHidden;
         document.getElementById('ui').style.display=uiHidden?'none':'block';
@@ -428,9 +414,30 @@
     if(distY<=rect.h/2) return true;
     const dx=distX-rect.w/2;
     const dy=distY-rect.h/2;
-    return dx*dx+dy*dy<=circle.r*circle.r;
+    return (dx*dx+dy*dy<=circle.r*circle.r);
   }
-  // ... Additional game loop logic would follow ...
+  // Main loop (simplified placeholder – actual game logic would go here)
+  function mainLoop(){
+    // Clear background
+    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);} else {ctx.clearRect(0,0,canvas.width,canvas.height);}
+    // Draw cup, hoop, orange, slices, blocks, etc.
+    cup.draw();
+    if(hoop.active){ctx.save(); ctx.translate(hoop.x,hoop.y); ctx.fillStyle='rgba(0,255,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
+    orange.draw();
+    slices.forEach(s=>s.draw());
+    blocks.forEach(b=>b.draw());
+    // Simple physics placeholder (gravity, friction)
+    orange.vy+=0.2; // gravity
+    orange.x+=orange.vx; orange.y+=orange.vy; orange.angle+=orange.angularVel;
+    // Ground collision
+    if(orange.y+orange.r>canvas.height){orange.y=canvas.height-orange.r; orange.vy*=-0.5;}
+    // Loop mode handling
+    if(UI.loop){orange.x+=2; if(orange.x-orange.r>canvas.width) orange.x=-orange.r;}
+    // Request next frame
+    if(gameRunning) requestAnimationFrame(mainLoop);
+  }
+  // Auto‑start after 60 seconds if the player hasn't started manually
+  window.addEventListener('load',()=>{setTimeout(startGame,60000);});
 </script>
 </body>
 </html>
