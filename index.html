@@ -23,7 +23,7 @@
 </style>
 </head>
 <body>
-<div id="titleLabel">Orange Game</div>
+<div id="titleLabel">orange game</div>
 <div id="pointsDiv">Points: 0</div>
 <div id="ui">
   <label>Name: <input type="text" id="nameInput" placeholder="Orange name" /></label>
@@ -346,7 +346,6 @@
     if(UI.mode==='sword'){
       if(orange.visible && distToOrange<=orange.r){createSlices(orange.x,orange.y); orange.visible=false; sounds.slice.play();}
     } else if(UI.mode==='bandAid'){
-      // Remove all slices and restore orange
       if(slices.length>0){slices.length=0; orange.visible=true; sounds.slice.play();}
     } else if(UI.mode==='racket'){
       const impulse=5;
@@ -407,105 +406,64 @@
     return (dx*dx+dy*dy<=circle.r*circle.r);
   }
   function resolveCircleRect(circle,rect){
-    // Simple push-out: move circle back along the smallest penetration axis
     const left=rect.x-rect.w/2;
     const right=rect.x+rect.w/2;
     const top=rect.y-rect.h/2;
     const bottom=rect.y+rect.h/2;
     let dx=0, dy=0;
     if(circle.x<left) dx=left-circle.x;
-    else if(circle.x>right) dx=right-circle.x;
+    else if(circle.x>right) dx=circle.x-right;
     if(circle.y<top) dy=top-circle.y;
-    else if(circle.y>bottom) dy=bottom-circle.y;
-    // If inside both ranges, choose the axis with minimal overlap
-    if(dx===0 && dy===0){
-      const overlapX=Math.min(circle.x-left, right-circle.x);
-      const overlapY=Math.min(circle.y-top, bottom-circle.y);
-      if(overlapX<overlapY) dx = (circle.x-left<right-circle.x)? -overlapX: overlapX;
-      else dy = (circle.y-top<bottom-circle.y)? -overlapY: overlapY;
-    }
-    circle.x+=dx;
-    circle.y+=dy;
-    circle.vx=0; circle.vy=0;
+    else if(circle.y>bottom) dy=circle.y-bottom;
+    if(Math.abs(dx)>Math.abs(dy)) circle.x+=dx;
+    else circle.y+=dy;
+    if(circle===orange){orange.vx=0; orange.vy=0;}
   }
-  function updateSlices(){
-    for(const s of slices){
-      if(!s.dragging){
-        s.x+=s.vx; s.y+=s.vy; s.vy+=0.1; s.angle+=s.angularVel;
-        // wall bounds
-        if(s.x-s.r<0){s.x=s.r; s.vx*=-0.8;}
-        if(s.x+s.r>canvas.width){s.x=canvas.width-s.r; s.vx*=-0.8;}
-        if(s.y-s.r<0){s.y=s.r; s.vy*=-0.8;}
-        if(s.y+s.r>canvas.height){s.y=canvas.height-s.r; s.vy*=-0.8;}
-        // black hole attraction
-        if(blackHole.enabled){
-          const dx=blackHole.x-s.x, dy=blackHole.y-s.y;
-          const dist=Math.hypot(dx,dy);
-          if(dist>0){
-            const ax=dx/dist*blackHole.strength;
-            const ay=dy/dist*blackHole.strength;
-            s.vx+=ax; s.vy+=ay;
-          }
-        }
-        // block collision
-        for(const b of blocks){
-          if(circleRectCollision(s,b)) resolveCircleRect(s,b);
-        }
-      }
-    }
+  function applyUnlocks(){
+    // Placeholder for future unlock logic
   }
-  function updateOrange(){
-    if(!orange.dragging && orange.visible){
-      if(UI.loop) orange.vx=2*orange.speedMultiplier;
-      orange.x+=orange.vx; orange.y+=orange.vy; orange.vy+=0.1; orange.angle+=orange.angularVel;
-      // wall bounds
-      if(orange.x-orange.r<0){orange.x=orange.r; orange.vx*=-0.8;}
-      if(orange.x+orange.r>canvas.width){orange.x=canvas.width-orange.r; orange.vx*=-0.8;}
-      if(orange.y-orange.r<0){orange.y=orange.r; orange.vy*=-0.8;}
-      if(orange.y+orange.r>canvas.height){orange.y=canvas.height-orange.r; orange.vy*=-0.8;}
-      // black hole attraction
-      if(blackHole.enabled){
-        const dx=blackHole.x-orange.x, dy=blackHole.y-orange.y;
-        const dist=Math.hypot(dx,dy);
-        if(dist>0){
-          const ax=dx/dist*blackHole.strength;
-          const ay=dy/dist*blackHole.strength;
-          orange.vx+=ax; orange.vy+=ay;
-        }
-      }
-      // block collision (make blocks block the character)
-      for(const b of blocks){
-        if(circleRectCollision(orange,b)) resolveCircleRect(orange,b);
-      }
-    }
+  function updateSkinAvailability(){
+    const points=hoop.points;
+    document.querySelectorAll('#colorSelect option').forEach(opt=>{
+      if(opt.value==='#FFFF00'){opt.disabled=points<100;}
+      if(opt.value==='#800080'){opt.disabled=points<500;}
+    });
   }
-  function drawBlackHole(){
-    if(blackHole.enabled){
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(blackHole.x,blackHole.y,blackHole.radius,0,Math.PI*2);
-      ctx.fillStyle='rgba(0,0,0,0.5)';
-      ctx.fill();
-      ctx.strokeStyle='white';
-      ctx.lineWidth=2;
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-  function gameLoop(){
+  // Main loop
+  function animate(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(bgImage) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
-    drawBlackHole();
-    orange.draw();
-    slices.forEach(s=>s.draw());
-    blocks.forEach(b=>b.draw());
+    if(bgImage){ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);}
+    // Black hole attraction
+    if(blackHole.enabled){
+      const dx=blackHole.x-orange.x, dy=blackHole.y-orange.y;
+      const dist=Math.hypot(dx,dy);
+      if(dist<200){orange.vx+=dx*blackHole.strength; orange.vy+=dy*blackHole.strength;}
+    }
+    // Update orange
+    orange.x+=orange.vx; orange.y+=orange.vy; orange.angle+=orange.angularVel;
+    // Loop side‑to‑side
+    if(UI.loop){orange.vx=2; if(orange.x>canvas.width+orange.r) orange.x=-orange.r;}
+    // Apply friction
+    orange.vx*=0.99; orange.vy*=0.99; orange.angularVel*=0.99;
+    // Update slices
+    slices.forEach(s=>{s.x+=s.vx; s.y+=s.vy; s.angle+=s.angularVel; s.vx*=0.99; s.vy*=0.99; s.angularVel*=0.99;});
+    // Collision with blocks
+    blocks.forEach(b=>{if(circleRectCollision(orange,b)){resolveCircleRect(orange,b);} slices.forEach(s=>{if(circleRectCollision(s,b)){resolveCircleRect(s,b);}}});
+    // Draw cup
     cup.draw();
-    if(hoop.active){ctx.save(); ctx.fillStyle='rgba(255,215,0,0.6)'; ctx.beginPath(); ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
-    updateSlices();
-    updateOrange();
-    requestAnimationFrame(gameLoop);
+    // Draw hoop if active
+    if(hoop.active){ctx.save(); ctx.translate(hoop.x,hoop.y); ctx.fillStyle='rgba(0,255,0,0.5)'; ctx.beginPath(); ctx.arc(0,0,hoop.r,0,Math.PI*2); ctx.fill(); ctx.restore();}
+    // Draw blocks
+    blocks.forEach(b=>b.draw());
+    // Draw slices
+    slices.forEach(s=>s.draw());
+    // Draw orange
+    orange.draw();
+    // Check hoop scoring
+    if(hoop.active && Math.hypot(orange.x-hoop.x,orange.y-hoop.y)<hoop.r+orange.r){hoop.points+=10; document.getElementById('pointsDiv').textContent='Points: '+hoop.points; updateSkinAvailability(); updateHoopPosition();}
+    requestAnimationFrame(animate);
   }
-  requestAnimationFrame(gameLoop);
+  animate();
 </script>
 </body>
 </html>
