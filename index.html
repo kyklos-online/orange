@@ -270,7 +270,6 @@
     } else if(typeof gameLoop === 'function'){
       gameLoop();
     } else {
-      // Fallback: start a simple loop that calls update and draws the scene
       requestAnimationFrame(mainLoop);
     }
   }
@@ -294,8 +293,18 @@
   // Shape tab handling
   let shapeTabVisible=false; let uiHidden=false;
   window.addEventListener('keydown',e=>{
-    if(e.key==='Control' && !e.repeat){uiHidden=!uiHidden; document.getElementById('ui').style.display=uiHidden?'none':'block';}
-    if(e.key==='Tab'){e.preventDefault(); shapeTabVisible=!shapeTabVisible; document.getElementById('shapeTab').style.display=shapeTabVisible?'block':'none';}
+    if(e.key==='Control' && !e.repeat){
+      // Only allow toggling tools after the game has started
+      if(gameRunning){
+        uiHidden=!uiHidden;
+        document.getElementById('ui').style.display=uiHidden?'none':'block';
+      }
+    }
+    if(e.key==='Tab'){
+      e.preventDefault();
+      shapeTabVisible=!shapeTabVisible;
+      document.getElementById('shapeTab').style.display=shapeTabVisible?'block':'none';
+    }
     if(selectedBlock){
       if(e.key==='ArrowLeft'){selectedBlock.angle-=Math.PI/18;}
       else if(e.key==='ArrowRight'){selectedBlock.angle+=Math.PI/18;}
@@ -329,7 +338,6 @@
         else if(this.type==='triangle'){ctx.fillStyle=this.color;ctx.beginPath();ctx.moveTo(0,-this.h/2);ctx.lineTo(-this.w/2,this.h/2);ctx.lineTo(this.w/2,this.h/2);ctx.closePath();ctx.fill();}
         else if(this.type==='slope'){ctx.fillStyle=this.color;ctx.beginPath();ctx.moveTo(-this.w/2,this.h/2);ctx.lineTo(this.w/2,this.h/2);ctx.lineTo(-this.w/2,-this.h/2);ctx.closePath();ctx.fill();}
         else {ctx.fillStyle=this.color;ctx.fillRect(-this.w/2,-this.h/2,this.w,this.h);} 
-        // Removed hit‑box outline as per new requirement
         ctx.restore();
       }
     };
@@ -420,56 +428,9 @@
     if(distY<=rect.h/2) return true;
     const dx=distX-rect.w/2;
     const dy=distY-rect.h/2;
-    return (dx*dx+dy*dy<=circle.r*circle.r);
+    return dx*dx+dy*dy<=circle.r*circle.r;
   }
-  function resolveCircleRect(circle,rect){
-    const left=rect.x-rect.w/2;
-    const right=rect.x+rect.w/2;
-    const top=rect.y-rect.h/2;
-    const bottom=rect.y+rect.h/2;
-    let dx=0, dy=0;
-    if(circle.x<left) dx=left-circle.x;
-    else if(circle.x>right) dx=circle.x-right;
-    if(circle.y<top) dy=top-circle.y;
-    else if(circle.y>bottom) dy=circle.y-bottom;
-    // Apply simple separation
-    circle.x+=dx;
-    circle.y+=dy;
-  }
-  // ---------- Main Game Loop (fallback if no existing loop) ----------
-  function mainLoop(){
-    // update physics
-    // (existing physics updates would live here; for now we just render)
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    if(bgImage) ctx.drawImage(bgImage,0,0,canvas.width,canvas.height);
-    // draw black hole
-    if(blackHole.enabled){
-      ctx.save();
-      ctx.fillStyle='rgba(0,0,0,0.5)';
-      ctx.beginPath();
-      ctx.arc(blackHole.x,blackHole.y,blackHole.radius,0,Math.PI*2);
-      ctx.fill();
-      ctx.restore();
-    }
-    // draw hoop
-    if(hoop.active){
-      ctx.save();
-      ctx.strokeStyle='red';
-      ctx.lineWidth=3;
-      ctx.beginPath();
-      ctx.arc(hoop.x,hoop.y,hoop.r,0,Math.PI*2);
-      ctx.stroke();
-      ctx.restore();
-    }
-    // draw shapes
-    blocks.forEach(b=>b.draw());
-    slices.forEach(s=>s.draw());
-    orange.draw();
-    cup.draw();
-    // request next frame if still running
-    if(gameRunning) requestAnimationFrame(mainLoop);
-  }
-  // If an animate/gameLoop function is defined later, it will be used instead of this fallback.
+  // ... Additional game loop logic would follow ...
 </script>
 </body>
 </html>
