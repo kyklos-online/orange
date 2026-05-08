@@ -220,6 +220,10 @@
     if(Math.random()<0.001) makeDiamond();
   }
   loadGame();
+  // Center orange on every reload regardless of saved position
+  orange.x=canvas.width/2;
+  orange.y=canvas.height/2;
+  orange.vx=0; orange.vy=0; orange.angularVel=0;
   updateSkinAvailability();
   // ---------- UI Buttons ----------
   document.getElementById('swordBtn').onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
@@ -253,17 +257,13 @@
     if(gameRunning) return;
     gameRunning = true;
     document.getElementById('ui').style.display='block';
-    // Begin the main animation loop if not already started
-    if(typeof animate === 'function'){
-      animate();
-    } else if(typeof gameLoop === 'function'){
-      gameLoop();
-    } else {
-      requestAnimationFrame(mainLoop);
-    }
+    // Begin the main animation loop
+    requestAnimationFrame(mainLoop);
   }
-  const startBtn=document.getElementById('startBtn');
-  if(startBtn){ startBtn.onclick=startGame; }
+  // Auto‑start the game when the page loads
+  window.addEventListener('load',()=>{
+    startGame();
+  });
   document.getElementById('hoopToggleBtn').onclick=()=>{hoop.active=!hoop.active; document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');};
   const speedBtn=document.getElementById('speedToggleBtn');
   const sizeBtn=document.getElementById('sizeToggleBtn');
@@ -276,7 +276,6 @@
     orange.supersize=!orange.supersize;
     orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
   };
-  // Random menu lines (now unused)
   // Shape tab handling
   let shapeTabVisible=false; let uiHidden=false;
   window.addEventListener('keydown',e=>{
@@ -433,11 +432,17 @@
     if(orange.y+orange.r>canvas.height){orange.y=canvas.height-orange.r; orange.vy*=-0.5;}
     // Loop mode handling
     if(UI.loop){orange.x+=2; if(orange.x-orange.r>canvas.width) orange.x=-orange.r;}
-    // Request next frame
-    if(gameRunning) requestAnimationFrame(mainLoop);
+    // Continue animation
+    requestAnimationFrame(mainLoop);
   }
-  // Auto‑start after 60 seconds if the player hasn't started manually
-  window.addEventListener('load',()=>{setTimeout(startGame,60000);});
+  // Helper to update skin availability (placeholder implementation)
+  function updateSkinAvailability(){
+    // Logic to enable/disable skin options based on points would go here.
+  }
+  // Placeholder for applying unlocks after secret code
+  function applyUnlocks(){
+    // Enable skins, superspeed, etc.
+  }
 </script>
 </body>
 </html>
