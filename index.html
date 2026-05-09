@@ -20,6 +20,12 @@
   #shapeTab {position:fixed; top:0; right:0; width:200px; height:100%; background:#f0f0f0; border-left:1px solid #ccc; padding:10px; box-sizing:border-box; display:none; z-index:1002;}
   #shapeTab button {width:100%; margin-bottom:5px;}
   #phraseDiv {position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.8); padding:5px 10px; border-radius:4px; display:none; font-weight:bold;}
+  /* Gravity buttons style */
+  #gravityControls button {
+    margin: 5px 3px 0 0;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -49,6 +55,14 @@
     <option value="#FFFF00" data-name="Lemon" data-points="100" data-unlock="100" disabled style="opacity:0.5;">Lemon</option>
     <option value="#800080" data-name="Grape" data-points="500" data-unlock="500" disabled style="opacity:0.5;">Grape</option>
   </select>
+  <br/>
+  <!-- Gravity control buttons -->
+  <div id="gravityControls">
+    <button id="noGravBtn" title="No Gravity">No Grav</button>
+    <button id="lessGravBtn" title="Less Gravity">Less Grav</button>
+    <button id="normalGravBtn" title="Normal Gravity">Normal Grav</button>
+    <button id="extraGravBtn" title="Extra Gravity">Extra Grav</button>
+  </div>
 </div>
 <button id="hoopToggleBtn">Hoop: Off</button>
 <canvas id="gameCanvas"></canvas>
@@ -99,6 +113,46 @@
 const canvas=document.getElementById('gameCanvas');
 const ctx=canvas.getContext('2d');
 const UI={mode:null,loop:false};
+
+// Gravity multiplier for gravity modes (default 0.1 normal gravity)
+let gravityMultiplier = 0.1;
+
+// Gravity Control buttons references
+const noGravBtn = document.getElementById('noGravBtn');
+const lessGravBtn = document.getElementById('lessGravBtn');
+const extraGravBtn = document.getElementById('extraGravBtn');
+const normalGravBtn = document.getElementById('normalGravBtn');
+
+function resetGravButtonStyles(){
+  noGravBtn.style.backgroundColor = '';
+  lessGravBtn.style.backgroundColor = '';
+  normalGravBtn.style.backgroundColor = '';
+  extraGravBtn.style.backgroundColor = '';
+}
+
+// Gravity buttons event handlers
+noGravBtn.onclick = () => {
+  gravityMultiplier = 0;
+  resetGravButtonStyles();
+  noGravBtn.style.backgroundColor = '#ddd';
+};
+lessGravBtn.onclick = () => {
+  gravityMultiplier = 0.05;
+  resetGravButtonStyles();
+  lessGravBtn.style.backgroundColor = '#ddd';
+};
+normalGravBtn.onclick = () => {
+  gravityMultiplier = 0.1;
+  resetGravButtonStyles();
+  normalGravBtn.style.backgroundColor = '#ddd';
+};
+extraGravBtn.onclick = () => {
+  gravityMultiplier = 0.2;
+  resetGravButtonStyles();
+  extraGravBtn.style.backgroundColor = '#ddd';
+};
+// Set default selected gravity button
+normalGravBtn.style.backgroundColor = '#ddd';
 
 const blackHole={
   enabled:false,
@@ -659,14 +713,14 @@ function createSlices(cx, cy) {
   }
 }
 
-// Updated update functions with black hole stronger and blocking collisions
+// Update functions now use gravityMultiplier instead of fixed 0.1 to apply gravity
 
 function updateSlices() {
   for (const s of slices) {
     if (!s.dragging) {
       s.x += s.vx;
       s.y += s.vy;
-      s.vy += 0.1;
+      s.vy += gravityMultiplier;
       s.angle += s.angularVel;
 
       // Canvas bounds bounce
@@ -718,7 +772,7 @@ function updateOrange() {
     if (UI.loop) orange.vx = 2 * orange.speedMultiplier;
     orange.x += orange.vx * orange.speedMultiplier;
     orange.y += orange.vy;
-    orange.vy += 0.1;
+    orange.vy += gravityMultiplier;
     orange.angle += orange.angularVel;
 
     // Canvas bounds with looping or bounce
