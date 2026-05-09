@@ -262,8 +262,9 @@ resize();
 
 // Save/load/reset game
 function saveGame(){
+  // Save strokes as well (orange.strokes), so no change here
   const state={
-    orange:{...orange},
+    orange:{...orange, strokes: orange.strokes.slice()},
     hoop:{active:hoop.active,points:hoop.points},
     slices:slices.map(s=>({...s})),
     blocks:blocks.map(b=>({...b}))
@@ -275,7 +276,11 @@ function loadGame(){
   if(saved){
     try{
       const state=JSON.parse(saved);
-      if(state.orange) Object.assign(orange,state.orange);
+      if(state.orange){
+        // restore orange properties and strokes
+        Object.assign(orange,state.orange);
+        orange.strokes = state.orange.strokes || [];
+      }
       if(state.hoop){
         hoop.active=state.hoop.active;
         hoop.points=state.hoop.points;
@@ -318,7 +323,8 @@ function resetGame(){
   hoop.active=false;
   document.getElementById('hoopToggleBtn').textContent='Hoop: Off';
   document.getElementById('colorSelect').value=orange.originalColor;
-  document.getElementById('nameInput').value='';
+  document.getElementById('nameInput').value=orange.name;
+  orange.strokes = [];  /* <-- Clear the drawing on the orange when reset */
   updateColorSelectUnlocks();
   saveGame();
 }
