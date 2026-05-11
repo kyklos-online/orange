@@ -5,22 +5,107 @@
 <title>Orange Game</title>
 <style>
   body {margin:0; overflow:hidden; font-family:sans-serif;}
-  #ui {position:absolute; top:60px; left:10px; background:#fff; padding:10px; border-radius:5px; box-shadow:0 0 5px rgba(0,0,0,0.3); display:none;}
-  #ui button, #ui input, #ui select {margin:2px;}
+  #topBar {
+    position:absolute;
+    top:0; left:0; right:0;
+    height:50px;
+    background:#FFF8DC;
+    display:flex;
+    align-items:center;
+    padding:0 10px;
+    box-shadow:0 2px 5px rgba(0,0,0,0.2);
+    font-weight:bold;
+    font-size:18px;
+  }
+  #titleLabel {color:#FFA500; flex:1;}
+  #endBtn {
+    margin-left:10px;
+    padding:5px 10px;
+    cursor:pointer;
+    background:#FFA500;
+    border:none;
+    border-radius:4px;
+    color:#fff;
+  }
+  #timerDiv, #scoreLeft, #scoreRight {
+    margin-left:15px;
+    min-width:70px;
+    text-align:center;
+  }
+  #ui {
+    position:absolute;
+    top:60px; left:10px;
+    background:#fff;
+    padding:10px;
+    border-radius:5px;
+    box-shadow:0 0 5px rgba(0,0,0,0.3);
+    display:none;
+  }
+  #ui button, #ui input, #ui select {
+    margin:2px;
+  }
   #nameInput {width:120px;}
   #bgInput {width:150px;}
-  #titleLabel {position:absolute; top:10px; left:10px; color:#FFA500; font-size:24px; font-weight:bold;}
+  
   #hoopToggleBtn {position:absolute; top:60px; right:10px; padding:5px 10px;}
   #pointsDiv {position:absolute; top:10px; right:10px; color:#000; font-size:20px;}
-  #startScreen {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; font-size:24px; z-index:1000;}
+  #startScreen {
+    position:fixed;
+    top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.7);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    color:#fff;
+    font-size:24px;
+    z-index:1000;
+  }
   #controlHint {font-size:18px; margin-bottom:15px;}
-  #howtoModal {position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; padding:20px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.5); z-index:1001; max-width:80%; max-height:80%; overflow:auto; display:none;}
+  #howtoModal {
+    position:fixed;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:#fff;
+    padding:20px;
+    border-radius:8px;
+    box-shadow:0 0 10px rgba(0,0,0,0.5);
+    z-index:1001;
+    max-width:80%;
+    max-height:80%;
+    overflow:auto;
+    display:none;
+  }
   #howtoModal h2 {margin-top:0;}
-  #howtoOverlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:none; z-index:1000;}
-  #shapeTab {position:fixed; top:0; right:0; width:200px; height:100%; background:#f0f0f0; border-left:1px solid #ccc; padding:10px; box-sizing:border-box; display:none; z-index:1002;}
+  #howtoOverlay {
+    position:fixed;
+    top:0; left:0; width:100%; height:100%;
+    background:rgba(0,0,0,0.4);
+    display:none;
+    z-index:1000;
+  }
+  #shapeTab {
+    position:fixed;
+    top:0; right:0; width:200px; height:100%;
+    background:#f0f0f0;
+    border-left:1px solid #ccc;
+    padding:10px;
+    box-sizing:border-box;
+    display:none;
+    z-index:1002;
+  }
   #shapeTab button {width:100%; margin-bottom:5px;}
-  #phraseDiv {position:fixed; top:80px; left:50%; transform:translateX(-50%); background:rgba(255,255,255,0.8); padding:5px 10px; border-radius:4px; display:none; font-weight:bold;}
-  /* Gravity buttons style */
+  #phraseDiv {
+    position:fixed;
+    top:80px;
+    left:50%;
+    transform:translateX(-50%);
+    background:rgba(255,255,255,0.8);
+    padding:5px 10px;
+    border-radius:4px;
+    display:none;
+    font-weight:bold;
+  }
   #gravityControls button {
     margin: 5px 3px 0 0;
     padding: 5px 10px;
@@ -29,7 +114,14 @@
 </style>
 </head>
 <body>
-<div id="titleLabel">Orange Game</div>
+<div id="topBar">
+  <div id="titleLabel">Orange Game</div>
+  <button id="endBtn">End</button>
+  <div id="timerDiv">Time: 40</div>
+  <div id="scoreLeft">Score Player 1: 0</div>
+  <div id="scoreRight">Score Player 2: 0</div>
+</div>
+
 <div id="pointsDiv">Points: 0</div>
 <div id="ui">
   <label>Name: <input type="text" id="nameInput" placeholder="Orange name" /></label>
@@ -56,7 +148,6 @@
     <option value="#800080" data-name="Grape" data-points="500" data-unlock="500" disabled style="opacity:0.5;">Grape</option>
   </select>
   <br/>
-  <!-- Gravity control buttons -->
   <div id="gravityControls">
     <button id="noGravBtn" title="No Gravity">No Grav</button>
     <button id="lessGravBtn" title="Less Gravity">Less Grav</button>
@@ -64,6 +155,7 @@
     <button id="extraGravBtn" title="Extra Gravity">Extra Grav</button>
   </div>
 </div>
+
 <button id="hoopToggleBtn">Hoop: Off</button>
 <canvas id="gameCanvas"></canvas>
 
@@ -73,6 +165,7 @@
   <div style="margin-bottom:10px; font-size:20px;" id="menuLine1"></div>
   <div style="margin-bottom:20px; font-size:20px;" id="menuLine2"></div>
   <button id="startBtn" style="padding:10px 20px; font-size:18px;">Start Game</button>
+  <button id="twoPlayerBtn" style="padding:10px 20px; font-size:18px; margin-top:10px;">Two Player</button>
 </div>
 
 <div id="howtoOverlay"></div>
@@ -94,6 +187,9 @@
     <li><strong>Hoop:</strong> Toggle the hoop. When the orange passes through the hoop you earn points; the hoop teleports to a new location after each score.</li>
     <li><strong>Points:</strong> 100 points → Lemon skin (click enabled at 100 points), 500 points → Grape skin (click enabled at 500 points), 1000 points → Necklace + superspeed & supersize (togglable).</li>
     <li><strong>Throwing:</strong> When you release a dragged orange or slice, it is thrown in the direction of your last drag.</li>
+    <li><strong>Player 2 controls:</strong> Use WASD keys to move the orange slightly.</li>
+    <li><strong>Goal:</strong> There is a left-side hoop (player 1 goal) and right-side goal (player 2); scoring adds points respectively.</li>
+    <li><strong>Each round:</strong> Timer 40 seconds, auto toggles Power Racket and normal gravity, scores updated.</li>
   </ul>
   <button id="closeHowtoBtn" style="margin-top:10px; padding:5px 10px;">Close</button>
 </div>
@@ -110,59 +206,42 @@
 <div id="phraseDiv"></div>
 
 <script>
-const canvas=document.getElementById('gameCanvas');
-const ctx=canvas.getContext('2d');
-const UI={mode:null,loop:false};
-
-// Gravity multiplier for gravity modes (default 0.1 normal gravity)
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const UI = {mode:null,loop:false};
 let gravityMultiplier = 0.1;
-
 // Gravity Control buttons references
 const noGravBtn = document.getElementById('noGravBtn');
 const lessGravBtn = document.getElementById('lessGravBtn');
 const extraGravBtn = document.getElementById('extraGravBtn');
 const normalGravBtn = document.getElementById('normalGravBtn');
-
-function resetGravButtonStyles(){
+function resetGravButtonStyles() {
   noGravBtn.style.backgroundColor = '';
   lessGravBtn.style.backgroundColor = '';
   normalGravBtn.style.backgroundColor = '';
   extraGravBtn.style.backgroundColor = '';
 }
-
-// Gravity buttons event handlers
 noGravBtn.onclick = () => {
-  gravityMultiplier = 0;
-  resetGravButtonStyles();
-  noGravBtn.style.backgroundColor = '#ddd';
+  gravityMultiplier = 0; resetGravButtonStyles(); noGravBtn.style.backgroundColor = '#ddd';
 };
 lessGravBtn.onclick = () => {
-  gravityMultiplier = 0.05;
-  resetGravButtonStyles();
-  lessGravBtn.style.backgroundColor = '#ddd';
+  gravityMultiplier = 0.05; resetGravButtonStyles(); lessGravBtn.style.backgroundColor = '#ddd';
 };
 normalGravBtn.onclick = () => {
-  gravityMultiplier = 0.1;
-  resetGravButtonStyles();
-  normalGravBtn.style.backgroundColor = '#ddd';
+  gravityMultiplier = 0.1; resetGravButtonStyles(); normalGravBtn.style.backgroundColor = '#ddd';
 };
 extraGravBtn.onclick = () => {
-  gravityMultiplier = 0.2;
-  resetGravButtonStyles();
-  extraGravBtn.style.backgroundColor = '#ddd';
+  gravityMultiplier = 0.2; resetGravButtonStyles(); extraGravBtn.style.backgroundColor = '#ddd';
 };
-// Set default selected gravity button
 normalGravBtn.style.backgroundColor = '#ddd';
 
-const blackHole={
+const blackHole = {
   enabled:false,
-  x:300,
-  y:300,
+  x:300, y:300,
   radius:40,
-  strength:0.3, // stronger pull
+  strength:0.3,
   dragging:false,
-  offsetX:0,
-  offsetY:0,
+  offsetX:0, offsetY:0,
   draw(){
     ctx.save();
     ctx.beginPath();
@@ -176,9 +255,9 @@ const blackHole={
   }
 };
 
-let bgImage=null;
+let bgImage = null;
 
-const orange={
+const orange = {
   x:200,y:200,r:50,angle:0,vx:0,vy:0,angularVel:0,
   dragging:false,name:'Orange',color:'#FFA500',visible:true,
   mass:5,strokes:[],originalColor:'#FFA500',isGold:false,isDiamond:false,
@@ -237,37 +316,49 @@ const orange={
   }
 };
 
-const slices=[];
-const blocks=[];
+const slices = [];
+const blocks = [];
 let selectedBlock=null;
 
-const hoop={x:0,y:0,r:30,active:false,points:0};
+const hoop = {
+  x:0,y:0,r:30,active:false,points:0
+};
 function updateHoopPosition(){
-  hoop.x=canvas.width-hoop.r-20;
+  hoop.x=hoop.r + 20;
   hoop.y=Math.random()*(canvas.height-hoop.r*2)+hoop.r;
 }
 updateHoopPosition();
 
-const cup={x:canvas.width/2,y:canvas.height-40,w:120,h:30,draw(){ctx.fillStyle='#8B4514';ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h);}};
+const goal = {
+  x:0,y:0,r:30,active:true
+};
+function updateGoalPosition(){
+  goal.x=canvas.width - goal.r - 20;
+  goal.y=Math.random()*(canvas.height - goal.r*2)+goal.r;
+}
+updateGoalPosition();
 
+const cup = {x:canvas.width/2,y:canvas.height-40,w:120,h:30,draw(){ctx.fillStyle='#8B4514';ctx.fillRect(this.x-this.w/2,this.y-this.h/2,this.w,this.h);}};
 function resize(){
   canvas.width=window.innerWidth;
   canvas.height=window.innerHeight;
   cup.x=canvas.width/2;
   cup.y=canvas.height-40;
   updateHoopPosition();
+  updateGoalPosition();
 }
 window.addEventListener('resize',resize);
 resize();
 
-// Save/load/reset game
 function saveGame(){
-  // Save strokes as well (orange.strokes), so no change here
   const state={
     orange:{...orange, strokes: orange.strokes.slice()},
     hoop:{active:hoop.active,points:hoop.points},
     slices:slices.map(s=>({...s})),
-    blocks:blocks.map(b=>({...b}))
+    blocks:blocks.map(b=>({...b})),
+    player2Score:scoreRightValue,
+    player1Score:scoreLeftValue,
+    timer:timer
   };
   localStorage.setItem('orangeGameState',JSON.stringify(state));
 }
@@ -277,7 +368,6 @@ function loadGame(){
     try{
       const state=JSON.parse(saved);
       if(state.orange){
-        // restore orange properties and strokes
         Object.assign(orange,state.orange);
         orange.strokes = state.orange.strokes || [];
       }
@@ -296,6 +386,9 @@ function loadGame(){
         blocks.length=0;
         state.blocks.forEach(b=>blocks.push(b));
       }
+      if(typeof state.player2Score === 'number') scoreRightValue = state.player2Score;
+      if(typeof state.player1Score === 'number') scoreLeftValue = state.player1Score;
+      if(typeof state.timer === 'number') timer = state.timer;
     }catch(e){console.error('Failed to load game state',e);}
   }
 }
@@ -324,17 +417,20 @@ function resetGame(){
   document.getElementById('hoopToggleBtn').textContent='Hoop: Off';
   document.getElementById('colorSelect').value=orange.originalColor;
   document.getElementById('nameInput').value=orange.name;
-  orange.strokes = [];  /* <-- Clear the drawing on the orange when reset */
+  orange.strokes = [];
+  resetScores();
+  timer=40;
+  updateTimerDisplay();
   updateColorSelectUnlocks();
   saveGame();
 }
-
 function makeGold(){
   orange.isGold=true; orange.isDiamond=false; orange.color='#FFD700'; orange.name='Gold'; orange.speedMultiplier=2; orange.r=50; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
 }
 function makeDiamond(){
   orange.isDiamond=true; orange.isGold=false; orange.color='#B9F2FF'; orange.name='Diamond'; orange.speedMultiplier=5; orange.r=70; orange.baseR=orange.r; orange.baseSpeed=orange.speedMultiplier;
 }
+// Load from localStorage or random gold/diamond
 if(!localStorage.getItem('orangeGameState')){
   if(Math.random()<0.01) makeGold();
   if(Math.random()<0.001) makeDiamond();
@@ -366,91 +462,47 @@ function updateColorSelectUnlocks(){
 }
 updateColorSelectUnlocks();
 
-// UI buttons handlers
-document.getElementById('swordBtn').onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
-document.getElementById('racketBtn').onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
-document.getElementById('powerRacketBtn').onclick=()=>{UI.mode=UI.mode==='powerRacket'?null:'powerRacket';};
-document.getElementById('handBtn').onclick=()=>{UI.mode=UI.mode==='hand'?null:'hand';};
-document.getElementById('deleteBtn').onclick=()=>{UI.mode=UI.mode==='delete'?null:'delete';};
-document.getElementById('drawBtn').onclick=()=>{UI.mode=UI.mode==='draw'?null:'draw';};
-document.getElementById('blackHoleBtn').onclick=()=>{
+const swordBtn = document.getElementById('swordBtn');
+const racketBtn = document.getElementById('racketBtn');
+const powerRacketBtn = document.getElementById('powerRacketBtn');
+const handBtn = document.getElementById('handBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const drawBtn = document.getElementById('drawBtn');
+const blackHoleBtn = document.getElementById('blackHoleBtn');
+const loopBtn = document.getElementById('loopBtn');
+const resetBtn = document.getElementById('resetBtn');
+const speedBtn = document.getElementById('speedToggleBtn');
+const sizeBtn = document.getElementById('sizeToggleBtn');
+
+swordBtn.onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
+racketBtn.onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
+powerRacketBtn.onclick=()=>{UI.mode=UI.mode==='powerRacket'?null:'powerRacket';};
+handBtn.onclick=()=>{UI.mode=UI.mode==='hand'?null:'hand';};
+deleteBtn.onclick=()=>{UI.mode=UI.mode==='delete'?null:'delete';};
+drawBtn.onclick=()=>{UI.mode=UI.mode==='draw'?null:'draw';};
+blackHoleBtn.onclick=()=>{
   blackHole.enabled=!blackHole.enabled;
   if(blackHole.enabled){blackHole.x=canvas.width/2; blackHole.y=canvas.height/2;}
 };
-document.getElementById('loopBtn').onclick=()=>{UI.loop=!UI.loop; if(!UI.loop){orange.vx=0;}};
-document.getElementById('resetBtn').onclick=resetGame;
-document.getElementById('howtoBtn').onclick=()=>{
-  document.getElementById('howtoOverlay').style.display='block';
-  document.getElementById('howtoModal').style.display='block';
-};
-document.getElementById('closeHowtoBtn').onclick=()=>{
-  document.getElementById('howtoOverlay').style.display='none';
-  document.getElementById('howtoModal').style.display='none';
-};
-document.getElementById('bgInput').addEventListener('change',e=>{
-  const file=e.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=ev=>{
-    bgImage=new Image();
-    bgImage.src=ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-document.getElementById('nameInput').addEventListener('input',e=>{
-  orange.name=e.target.value||orange.name;
-});
-const colorSelect=document.getElementById('colorSelect');
-colorSelect.addEventListener('change',e=>{
-  const sel=e.target;
-  const option=sel.options[sel.selectedIndex];
-  const color=sel.value;
-  const name=option.getAttribute('data-name');
-  const requiredPoints=parseInt(option.getAttribute('data-unlock')||0);
-  if(requiredPoints && hoop.points < requiredPoints) {
-    alert(`You need at least ${requiredPoints} points to select ${name}.`);
-    sel.value=orange.color;
-    return;
-  }
-  orange.color=color;
-  orange.originalColor=color;
-  orange.name=name;
-  document.getElementById('nameInput').value=name;
-});
-document.getElementById('startBtn').onclick=()=>{
-  document.getElementById('startScreen').style.display='none';
-  document.getElementById('ui').style.display='block';
-};
-document.getElementById('hoopToggleBtn').onclick=()=>{
-  hoop.active=!hoop.active;
-  document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');
-};
-const speedBtn=document.getElementById('speedToggleBtn');
-const sizeBtn=document.getElementById('sizeToggleBtn');
-speedBtn.onclick=()=>{
-  orange.superspeed=!orange.superspeed;
-  if(orange.superspeed) orange.speedMultiplier*=2;
-  else orange.speedMultiplier/=2;
-};
-sizeBtn.onclick=()=>{
-  orange.supersize=!orange.supersize;
-  orange.r = orange.supersize ? orange.baseR*1.5 : orange.baseR;
-};
-const menuPhrases=["Orange you glad I made this game?","This game is un‑peel‑ievable.","Peel the competition!","Citrus vibes only."];
-document.getElementById('menuLine1').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
-document.getElementById('menuLine2').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
-let shapeTabVisible=false; let uiHidden=false; let secretSeq = '', secretSeq2 = '', secretSeq3 = '';
+loopBtn.onclick=()=>{UI.loop=!UI.loop; if(!UI.loop){orange.vx=0;}};
+resetBtn.onclick=resetGame;
 
-function unlockAll() {
-  hoop.points = 10000;
-  document.getElementById('pointsDiv').textContent = 'Points: ' + hoop.points;
-  applyUnlocks();
+let uiHideTimeout;
+function resetUiHideTimer(){
+  if(uiHideTimeout) clearTimeout(uiHideTimeout);
+  uiHideTimeout = setTimeout(()=> {
+    document.getElementById('ui').style.display = 'none';
+    uiHidden = true;
+  }, 3000);
 }
+resetUiHideTimer();
 
+let uiHidden = false;
 window.addEventListener('keydown', e => {
   if (e.key === 'Control' && !e.repeat) {
     uiHidden = !uiHidden;
     document.getElementById('ui').style.display = uiHidden ? 'none' : 'block';
+    if(!uiHidden) resetUiHideTimer();
   }
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -470,8 +522,10 @@ window.addEventListener('keydown', e => {
     secretSeq3 = (secretSeq3 + e.key.toLowerCase()).slice(-9);
     if (secretSeq3 === 'babastart') unlockAll();
   }
+  resetUiHideTimer();
 });
 
+let shapeTabVisible=false;
 document.getElementById('shapeTab').addEventListener('click', e => {
   if (e.target.tagName !== 'BUTTON') return;
   const shape = e.target.getAttribute('data-shape');
@@ -516,7 +570,6 @@ document.getElementById('shapeTab').addEventListener('click', e => {
   document.getElementById('shapeTab').style.display = 'none';
 });
 
-// Mouse interaction
 let mouse = { x: 0, y: 0, down: false };
 let draggedObj = null;
 let currentStroke = null;
@@ -525,6 +578,7 @@ let lastDragDelta = { x: 0, y: 0 };
 canvas.addEventListener('mousedown', e => {
   mouse.down = true; mouse.x = e.clientX; mouse.y = e.clientY;
   lastDragDelta.x = 0; lastDragDelta.y = 0;
+  resetUiHideTimer();
   const bhDist = Math.hypot(mouse.x - blackHole.x, mouse.y - blackHole.y);
   if (blackHole.enabled && bhDist <= blackHole.radius) {
     blackHole.dragging = true; blackHole.offsetX = mouse.x - blackHole.x; blackHole.offsetY = mouse.y - blackHole.y; return;
@@ -557,6 +611,7 @@ canvas.addEventListener('mousedown', e => {
 });
 
 canvas.addEventListener('mousemove', e => {
+  resetUiHideTimer();
   const prevX = mouse.x, prevY = mouse.y;
   mouse.x = e.clientX; mouse.y = e.clientY;
   lastDragDelta.x = mouse.x - prevX;
@@ -582,6 +637,7 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('mouseup', e => {
   mouse.down = false;
+  resetUiHideTimer();
   if (blackHole.dragging) {
     blackHole.dragging = false;
   }
@@ -719,8 +775,6 @@ function createSlices(cx, cy) {
   }
 }
 
-// Update functions now use gravityMultiplier instead of fixed 0.1 to apply gravity
-
 function updateSlices() {
   for (const s of slices) {
     if (!s.dragging) {
@@ -729,13 +783,11 @@ function updateSlices() {
       s.vy += gravityMultiplier;
       s.angle += s.angularVel;
 
-      // Canvas bounds bounce
       if (s.x - s.r < 0) { s.x = s.r; s.vx *= -0.8; }
       if (s.x + s.r > canvas.width) { s.x = canvas.width - s.r; s.vx *= -0.8; }
       if (s.y - s.r < 0) { s.y = s.r; s.vy *= -0.8; }
       if (s.y + s.r > canvas.height) { s.y = canvas.height - s.r; s.vy *= -0.8; }
 
-      // Black hole pull stronger
       if (blackHole.enabled) {
         const dx = blackHole.x - s.x;
         const dy = blackHole.y - s.y;
@@ -746,8 +798,6 @@ function updateSlices() {
           s.vy += force * dy / dist;
         }
       }
-
-      // Blocks act like walls - block & bounce slices
       for (const b of blocks) {
         let closestX = Math.max(b.x - b.w / 2, Math.min(s.x, b.x + b.w / 2));
         let closestY = Math.max(b.y - b.h / 2, Math.min(s.y, b.y + b.h / 2));
@@ -756,10 +806,8 @@ function updateSlices() {
         let dist = Math.hypot(distX, distY);
         if (dist < s.r && dist !== 0) {
           let overlap = s.r - dist;
-          // Push out
           s.x += (distX / dist) * overlap;
           s.y += (distY / dist) * overlap;
-          // Reflect velocity
           const normalX = distX / dist;
           const normalY = distY / dist;
           const dot = s.vx * normalX + s.vy * normalY;
@@ -781,7 +829,6 @@ function updateOrange() {
     orange.vy += gravityMultiplier;
     orange.angle += orange.angularVel;
 
-    // Canvas bounds with looping or bounce
     if (orange.x - orange.r < 0) {
       if (UI.loop) orange.x = canvas.width - orange.r;
       else { orange.x = orange.r; orange.vx *= -0.8; }
@@ -793,7 +840,6 @@ function updateOrange() {
     if (orange.y - orange.r < 0) { orange.y = orange.r; orange.vy *= -0.8; }
     if (orange.y + orange.r > canvas.height) { orange.y = canvas.height - orange.r; orange.vy *= -0.8; }
 
-    // Black hole pull stronger
     if (blackHole.enabled) {
       const dx = blackHole.x - orange.x;
       const dy = blackHole.y - orange.y;
@@ -805,7 +851,6 @@ function updateOrange() {
       }
     }
 
-    // Blocks act like walls - block & bounce orange
     for (const b of blocks) {
       let closestX = Math.max(b.x - b.w / 2, Math.min(orange.x, b.x + b.w / 2));
       let closestY = Math.max(b.y - b.h / 2, Math.min(orange.y, b.y + b.h / 2));
@@ -856,7 +901,7 @@ function updateBlocks() {
       const dy = blackHole.y - b.y;
       const dist = Math.hypot(dx, dy);
       if (dist < blackHole.radius) {
-        const force = blackHole.strength * (1 - dist / blackHole.radius) * 3; // stronger effect on blocks
+        const force = blackHole.strength * (1 - dist / blackHole.radius) * 3;
         b.vx += force * dx / dist;
         b.vy += force * dy / dist;
       }
@@ -866,23 +911,131 @@ function updateBlocks() {
 
 function drawHoop() {
   if (!hoop.active) return;
-  ctx.save(); ctx.translate(hoop.x, hoop.y);
+  ctx.save();
+  ctx.translate(hoop.x, hoop.y);
   ctx.strokeStyle = 'gold'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 0, hoop.r, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
 }
 
+function drawGoal() {
+  if (!goal.active) return;
+  ctx.save();
+  ctx.translate(goal.x, goal.y);
+  ctx.strokeStyle = 'limegreen';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, 0, goal.r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Scores and timer
+let scoreLeftValue = 0;
+let scoreRightValue = 0;
+function updateScoreDisplays(){
+  document.getElementById('scoreLeft').textContent = 'Score Player 1: ' + scoreLeftValue;
+  document.getElementById('scoreRight').textContent = 'Score Player 2: ' + scoreRightValue;
+}
+function resetScores(){
+  scoreLeftValue = 0;
+  scoreRightValue = 0;
+  updateScoreDisplays();
+}
+
+// Timer for rounds
+let timer = 40;
+let twoPlayerMode = false;
+let roundInterval = null;
+
+const timerDiv = document.getElementById('timerDiv');
+const endBtn = document.getElementById('endBtn');
+const twoPlayerBtn = document.getElementById('twoPlayerBtn');
+const startBtn = document.getElementById('startBtn');
+
+function updateTimerDisplay(){
+  timerDiv.textContent = 'Time: ' + timer;
+}
+
+// Check hoop/goal collisions, add points accordingly
 function checkHoopCollision() {
   if (!hoop.active || !orange.visible) return;
   const dist = Math.hypot(orange.x - hoop.x, orange.y - hoop.y);
   if (dist < orange.r + hoop.r) {
-    hoop.points += 10;
-    document.getElementById('pointsDiv').textContent = 'Points: ' + hoop.points;
+    scoreLeftValue++;
+    updateScoreDisplays();
     saveGame();
     updateHoopPosition();
-    updateColorSelectUnlocks();
+  }
+}
+function checkGoalCollision() {
+  if (!goal.active || !orange.visible) return;
+  const dist = Math.hypot(orange.x - goal.x, orange.y - goal.y);
+  if (dist < orange.r + goal.r) {
+    scoreRightValue++;
+    updateScoreDisplays();
+    saveGame();
+    updateGoalPosition();
   }
 }
 
+// Start new round setup
+function startNewRound(){
+  timer = 40;
+  updateTimerDisplay();
+  UI.mode = 'powerRacket';
+  powerRacketBtn.style.backgroundColor = '#ddd';
+  normalGravBtn.onclick();
+  if(uiHidden){
+    uiHidden = false;
+    document.getElementById('ui').style.display = 'block';
+    resetUiHideTimer();
+  }
+  orange.x = canvas.width/2;
+  orange.y = canvas.height/2;
+  orange.vx = 0;
+  orange.vy = 0;
+  orange.angle = 0;
+  orange.angularVel = 0;
+}
+
+// Timer countdown and round logic
+function roundTick(){
+  timer--;
+  if(timer < 0){
+    timer=40;
+    scoreLeftValue++;
+    updateScoreDisplays();
+    updateHoopPosition();
+    updateGoalPosition();
+    startNewRound();
+  } else {
+    updateTimerDisplay();
+  }
+}
+
+// Handle player 2 movement keys (WASD)
+const keysDown = {};
+window.addEventListener('keydown',e=>{
+  keysDown[e.key.toLowerCase()] = true;
+});
+window.addEventListener('keyup',e=>{
+  keysDown[e.key.toLowerCase()] = false;
+});
+
+function handlePlayer2Controls(){
+  if(!twoPlayerMode) return;
+  const moveSpeed = 3;
+  if(keysDown['w']) orange.y -= moveSpeed;
+  if(keysDown['a']) orange.x -= moveSpeed;
+  if(keysDown['s']) orange.y += moveSpeed;
+  if(keysDown['d']) orange.x += moveSpeed;
+  if(orange.x - orange.r < 0) orange.x = orange.r;
+  if(orange.x + orange.r > canvas.width) orange.x = canvas.width - orange.r;
+  if(orange.y - orange.r < 0) orange.y = orange.r;
+  if(orange.y + orange.r > canvas.height) orange.y = canvas.height - orange.r;
+}
+
+// Apply unlocks
 function applyUnlocks() {
   if (hoop.points >= 100 && orange.name !== 'Lemon') {
     orange.color = '#FFFF00'; orange.name = 'Lemon';
@@ -899,6 +1052,7 @@ function applyUnlocks() {
   }
 }
 
+// Main game loop
 function gameLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (bgImage) ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
@@ -908,14 +1062,120 @@ function gameLoop() {
   blocks.forEach(b => b.draw && b.draw());
   orange.draw();
   drawHoop();
+  drawGoal();
   updateSlices();
   updateOrange();
   updateBlocks();
+
+  handlePlayer2Controls();
+
   checkHoopCollision();
+  checkGoalCollision();
+
   applyUnlocks();
   saveGame();
+
   requestAnimationFrame(gameLoop);
 }
+
+let secretSeq = '', secretSeq2 = '', secretSeq3 = '';
+function unlockAll() {
+  hoop.points = 10000;
+  document.getElementById('pointsDiv').textContent = 'Points: ' + hoop.points;
+  applyUnlocks();
+}
+
+startBtn.onclick = () => {
+  document.getElementById('startScreen').style.display = 'none';
+  document.getElementById('ui').style.display = 'block';
+  uiHidden = false;
+  resetUiHideTimer();
+  startNewRound();
+  if(roundInterval){
+    clearInterval(roundInterval);
+    roundInterval = null;
+  }
+  if(twoPlayerMode){
+    // Show timer and scores
+    timerDiv.style.display = 'block';
+    document.getElementById('scoreLeft').style.display = 'block';
+    document.getElementById('scoreRight').style.display = 'block';
+    roundInterval = setInterval(roundTick, 1000);
+  } else {
+    // Hide timer and scores
+    timerDiv.style.display = 'none';
+    document.getElementById('scoreLeft').style.display = 'none';
+    document.getElementById('scoreRight').style.display = 'none';
+  }
+};
+
+document.getElementById('hoopToggleBtn').onclick=()=>{
+  hoop.active=!hoop.active;
+  document.getElementById('hoopToggleBtn').textContent='Hoop: '+(hoop.active?'On':'Off');
+};
+endBtn.onclick=()=>{
+  alert(`Game Over!\nPlayer 1 Score: ${scoreLeftValue}\nPlayer 2 Score: ${scoreRightValue}`);
+  resetGame();
+  document.getElementById('startScreen').style.display='flex';
+  if(roundInterval){
+    clearInterval(roundInterval);
+    roundInterval = null;
+  }
+  // Show timer and scores for next game start
+  timerDiv.style.display = 'block';
+  document.getElementById('scoreLeft').style.display = 'block';
+  document.getElementById('scoreRight').style.display = 'block';
+};
+
+// Handle two player toggle
+twoPlayerBtn.onclick=()=>{
+  twoPlayerMode = !twoPlayerMode;
+  alert('Two Player mode ' + (twoPlayerMode ? 'enabled. Use WASD keys for Player 2.' : 'disabled.'));
+};
+
+document.getElementById('howtoBtn').onclick=()=>{
+  document.getElementById('howtoOverlay').style.display='block';
+  document.getElementById('howtoModal').style.display='block';
+};
+document.getElementById('closeHowtoBtn').onclick=()=>{
+  document.getElementById('howtoOverlay').style.display='none';
+  document.getElementById('howtoModal').style.display='none';
+};
+document.getElementById('bgInput').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    bgImage=new Image();
+    bgImage.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('nameInput').addEventListener('input',e=>{
+  orange.name=e.target.value||orange.name;
+});
+const colorSelect=document.getElementById('colorSelect');
+colorSelect.addEventListener('change',e=>{
+  const sel=e.target;
+  const option=sel.options[sel.selectedIndex];
+  const color=sel.value;
+  const name=option.getAttribute('data-name');
+  const requiredPoints=parseInt(option.getAttribute('data-unlock')||0);
+  if(requiredPoints && hoop.points < requiredPoints) {
+    alert(`You need at least ${requiredPoints} points to select ${name}.`);
+    sel.value=orange.color;
+    return;
+  }
+  orange.color=color;
+  orange.originalColor=color;
+  orange.name=name;
+  document.getElementById('nameInput').value=name;
+});
+
+// Initial text
+const menuPhrases=["Orange you glad I made this game?","This game is un‑peel‑ievable.","Peel the competition!","Citrus vibes only."];
+document.getElementById('menuLine1').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
+document.getElementById('menuLine2').textContent=menuPhrases[Math.floor(Math.random()*menuPhrases.length)];
 
 gameLoop();
 </script>
