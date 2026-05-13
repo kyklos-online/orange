@@ -127,8 +127,9 @@
   <label>Name: <input type="text" id="nameInput" placeholder="Orange name" /></label>
   <br/>
   <button id="swordBtn">Sword (Slice)</button>
-  <button id="racketBtn">Racket (Smack)</button>
+  <!-- Removed racketBtn as requested -->
   <button id="powerRacketBtn">Power Racket (Smash)</button>
+  <button id="groundRacketBtn">Ground Racket (Bounce)</button> <!-- Added ground racket button -->
   <button id="handBtn">Hand (Pick up / Move)</button>
   <button id="deleteBtn">Delete (Remove Block)</button>
   <button id="drawBtn">Draw (On Orange)</button>
@@ -463,8 +464,9 @@ function updateColorSelectUnlocks(){
 updateColorSelectUnlocks();
 
 const swordBtn = document.getElementById('swordBtn');
-const racketBtn = document.getElementById('racketBtn');
+// const racketBtn = document.getElementById('racketBtn'); // Removed racket button
 const powerRacketBtn = document.getElementById('powerRacketBtn');
+const groundRacketBtn = document.getElementById('groundRacketBtn');
 const handBtn = document.getElementById('handBtn');
 const deleteBtn = document.getElementById('deleteBtn');
 const drawBtn = document.getElementById('drawBtn');
@@ -474,9 +476,31 @@ const resetBtn = document.getElementById('resetBtn');
 const speedBtn = document.getElementById('speedToggleBtn');
 const sizeBtn = document.getElementById('sizeToggleBtn');
 
+// Mode selectors
 swordBtn.onclick=()=>{UI.mode=UI.mode==='sword'?null:'sword';};
-racketBtn.onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';};
-powerRacketBtn.onclick=()=>{UI.mode=UI.mode==='powerRacket'?null:'powerRacket';};
+// racketBtn.onclick=()=>{UI.mode=UI.mode==='racket'?null:'racket';}; // Removed racket button toggle
+powerRacketBtn.onclick=()=>{
+  if(UI.mode==='powerRacket'){
+    UI.mode=null;
+    powerRacketBtn.style.backgroundColor = '';
+    groundRacketBtn.style.backgroundColor = '';
+  } else {
+    UI.mode='powerRacket';
+    powerRacketBtn.style.backgroundColor = '#ddd';
+    groundRacketBtn.style.backgroundColor = '';
+  }
+};
+groundRacketBtn.onclick=()=>{
+  // Ground racket button toggles ground racket mode only, no auto switching
+  if(UI.mode==='groundRacket'){
+    UI.mode=null;
+    groundRacketBtn.style.backgroundColor = '';
+  } else {
+    UI.mode='groundRacket';
+    groundRacketBtn.style.backgroundColor = '#ddd';
+    powerRacketBtn.style.backgroundColor = '';
+  }
+};
 handBtn.onclick=()=>{UI.mode=UI.mode==='hand'?null:'hand';};
 deleteBtn.onclick=()=>{UI.mode=UI.mode==='delete'?null:'delete';};
 drawBtn.onclick=()=>{UI.mode=UI.mode==='draw'?null:'draw';};
@@ -498,6 +522,10 @@ function resetUiHideTimer(){
 resetUiHideTimer();
 
 let uiHidden = false;
+
+// Track s-key disable for 2-player mode after ground racket hit
+let sKeyDisabled = false;
+
 window.addEventListener('keydown', e => {
   if (e.key === 'Control' && !e.repeat) {
     uiHidden = !uiHidden;
@@ -510,10 +538,53 @@ window.addEventListener('keydown', e => {
     document.getElementById('shapeTab').style.display = shapeTabVisible ? 'block' : 'none';
   }
   if (selectedBlock) {
-    if (e.key === 'ArrowLeft') { selectedBlock.angle -= Math.PI / 18; }
-    else if (e.key === 'ArrowRight') { selectedBlock.angle += Math.PI / 18; }
-    else if (e.key === 'ArrowDown') { selectedBlock.angle = 0; }
+    // New toggle logic for left or right arrows when powerRacket or groundRacket selected
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.repeat) {
+      if (UI.mode === 'powerRacket') {
+        UI.mode = 'groundRacket';
+        powerRacketBtn.style.backgroundColor = '';
+        groundRacketBtn.style.backgroundColor = '#ddd';
+      } else if (UI.mode === 'groundRacket') {
+        UI.mode = 'powerRacket';
+        powerRacketBtn.style.backgroundColor = '#ddd';
+        groundRacketBtn.style.backgroundColor = '';
+      }
+    }
+
+    // Rotate selected block for arrows (angle adjustment)
+    if (e.key === 'ArrowLeft') {
+      selectedBlock.angle -= Math.PI / 18;
+    } else if (e.key === 'ArrowRight') {
+      selectedBlock.angle += Math.PI / 18;
+    } else if (e.key === 'ArrowDown') {
+      selectedBlock.angle = 0;
+    }
   }
+  
+  let keyLower = e.key.toLowerCase();
+
+  // Additional: M selects powerRacket, N selects groundRacket
+  if (!e.repeat) {
+    if (keyLower === 'm') {
+      UI.mode = 'powerRacket';
+      powerRacketBtn.style.backgroundColor = '#ddd';
+      groundRacketBtn.style.backgroundColor = '';
+    } else if (keyLower === 'n') {
+      UI.mode = 'groundRacket';
+      groundRacketBtn.style.backgroundColor = '#ddd';
+      powerRacketBtn.style.backgroundColor = '';
+    }
+  }
+
+  if (twoPlayerMode && keyLower === 's') {
+    if(sKeyDisabled){
+      // Prevent reaction if s key disabled
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+  }
+
   if (e.key.length === 1) {
     secretSeq = (secretSeq + e.key.toLowerCase()).slice(-6);
     if (secretSeq === 'orange') makeGold();
@@ -692,37 +763,51 @@ canvas.addEventListener('mouseup', e => {
         return;
       }
     }
-  } else if (UI.mode === 'racket') {
-    const impulse = 5;
+  } else if (UI.mode === 'powerRacket' || UI.mode === 'racket') {
+    // powerRacket and racket code merged because racket button removed
+    const impulse = (UI.mode === 'powerRacket') ? 12 : 5;
     slices.forEach(s => {
       const d = Math.hypot(s.x - clickX, s.y - clickY);
-      if (d < 100) {
+      if (d < ((UI.mode === 'powerRacket') ? 150 : 100)) {
         const angle = Math.atan2(s.y - clickY, s.x - clickX);
         s.vx += Math.cos(angle) * impulse;
         s.vy += Math.sin(angle) * impulse;
       }
     });
-    if (orange.visible && distToOrange < 100) {
+    if (orange.visible && distToOrange < ((UI.mode === 'powerRacket') ? 150 : 100)) {
       const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
       orange.vx += Math.cos(angle) * impulse / orange.mass;
       orange.vy += Math.sin(angle) * impulse / orange.mass;
-      orange.angularVel += (Math.random() - 0.5) * 0.2;
+      orange.angularVel += (Math.random() - 0.5) * ((UI.mode === 'powerRacket') ? 0.4 : 0.2);
     }
-  } else if (UI.mode === 'powerRacket') {
-    const impulse = 12;
-    slices.forEach(s => {
-      const d = Math.hypot(s.x - clickX, s.y - clickY);
-      if (d < 150) {
-        const angle = Math.atan2(s.y - clickY, s.x - clickX);
-        s.vx += Math.cos(angle) * impulse;
-        s.vy += Math.sin(angle) * impulse;
+  } else if (UI.mode === 'groundRacket') {
+    // this is new: launch anything on ground into air and bounce
+    const groundLevel = canvas.height;
+    const bounceImpulse = 15;
+    const launchRadius = 150;
+    let player2Hit = false;
+
+    function launchObject(obj) {
+      if (obj.y + (obj.r || Math.max(obj.h/2 || 0, obj.w/2 || 0)) >= groundLevel - 1) {
+        // Only launch if object is on or very near the ground
+        obj.vy = -bounceImpulse;
+        obj.vx += (Math.random() - 0.5) * 5;
       }
-    });
-    if (orange.visible && distToOrange < 150) {
-      const angle = Math.atan2(orange.y - clickY, orange.x - clickX);
-      orange.vx += Math.cos(angle) * impulse / orange.mass;
-      orange.vy += Math.sin(angle) * impulse / orange.mass;
-      orange.angularVel += (Math.random() - 0.5) * 0.4;
+    }
+
+    launchObject(orange);
+    slices.forEach(launchObject);
+    blocks.forEach(launchObject);
+
+    // If in 2 player mode and orange is hit on ground racket, disable 's' for 2 sec
+    if(twoPlayerMode){
+      let distToOrangeCenter = Math.hypot(orange.x - clickX, orange.y - clickY);
+      if(distToOrangeCenter < launchRadius){
+        sKeyDisabled = true;
+        setTimeout(() => {
+          sKeyDisabled = false;
+        }, 2000);
+      }
     }
   } else if (UI.mode === 'delete') {
     for (let i = blocks.length - 1; i >= 0; i--) {
@@ -984,6 +1069,7 @@ function startNewRound(){
   updateTimerDisplay();
   UI.mode = 'powerRacket';
   powerRacketBtn.style.backgroundColor = '#ddd';
+  groundRacketBtn.style.backgroundColor = '';
   normalGravBtn.onclick();
   if(uiHidden){
     uiHidden = false;
@@ -1027,7 +1113,7 @@ function handlePlayer2Controls(){
   const moveSpeed = 3;
   if(keysDown['w']) orange.y -= moveSpeed;
   if(keysDown['a']) orange.x -= moveSpeed;
-  if(keysDown['s']) orange.y += moveSpeed;
+  if(keysDown['s'] && !sKeyDisabled) orange.y += moveSpeed;
   if(keysDown['d']) orange.x += moveSpeed;
   if(orange.x - orange.r < 0) orange.x = orange.r;
   if(orange.x + orange.r > canvas.width) orange.x = canvas.width - orange.r;
@@ -1126,13 +1212,11 @@ endBtn.onclick=()=>{
   document.getElementById('scoreLeft').style.display = 'block';
   document.getElementById('scoreRight').style.display = 'block';
 };
-
 // Handle two player toggle
 twoPlayerBtn.onclick=()=>{
   twoPlayerMode = !twoPlayerMode;
   alert('Two Player mode ' + (twoPlayerMode ? 'enabled. Use WASD keys for Player 2.' : 'disabled.'));
 };
-
 document.getElementById('howtoBtn').onclick=()=>{
   document.getElementById('howtoOverlay').style.display='block';
   document.getElementById('howtoModal').style.display='block';
