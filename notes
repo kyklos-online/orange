@@ -1,2 +1,788 @@
 orange game notes   progress=done
+fortnite
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Mini Fortnite Top-Down</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #87ceeb;
+      user-select: none;
+    }
+
+    canvas {
+      background: #228B22;
+      display: block;
+      margin: 0 auto;
+    }
+
+    #minimap {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      border: 2px solid black;
+      background: rgba(255, 255, 255, 0.7);
+      width: 150px;
+      height: 150px;
+      z-index: 10;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <canvas id="minimap" width="150" height="150"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const minimap = document.getElementById('minimap');
+    const mapCtx = minimap.getContext('2d');
+
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+    });
+    window.addEventListener('keyup', e => {
+      keys[e.key.toLowerCase()] = false;
+    });
+
+    const GAME_WIDTH = canvas.width;
+    const GAME_HEIGHT = canvas.height;
+
+    // Guns config
+    const GUNS = {
+      PISTOL: { name: "Pistol", fireRate: 300, bulletsPerShot: 1, spread: 0, damage: 15, bulletSpeed: 7, rarity: 'common' },
+      AK47: { name: "AK-47", fireRate: 100, bulletsPerShot: 1, spread: 0, damage: 12, bulletSpeed: 9, rarity: 'rare', automatic: true },
+      SHOTGUN: { name: "Shotgun", fireRate: 1000, bulletsPerShot: 3, spread: 0.25, damage: 8, bulletSpeed: 7, rarity: 'rare' },
+      RPG: { name: "RPG", fireRate: 1500, bulletsPerShot: 1, spread: 0, damage: 30, bulletSpeed: 5, rarity: 'legendary', explosive: true, explosionRadius: 50 }
+    };
+
+    // Chug jugs config
+    const CHUGJUGS = {
+      SMALL: { name: 'Small', healHealth: 20, healShield: 10 },
+      MEDIUM: { name: 'Medium', healHealth: 50, healShield: 25 },
+      LARGE: { name: 'Large', healHealth: 100, healShield: 50 }
+    };
+
+    // Helper: weighted random gun selection for loot, bombs & chugjug rarer
+    function getRandomGun() {
+      let roll = Math.random();
+      if (roll < 0.67) return GUNS.PISTOL;    // 67% pistol
+      else if (roll < 0.85) return GUNS.AK47; // 18% AK-47
+      else if (roll < 0.95) return GUNS.SHOTGUN; // 10% shotgun
+      else return GUNS.RPG;                   // 5% RPG
+    }
+
+    // Helper: random chug jug
+    function getRandomChugJug() {
+      let roll = Math.random();
+      if (roll < 0.6) return CHUGJUGS.SMALL;
+      else if (roll < 0.9) return CHUGJUGS.MEDIUM;
+      else return CHUGJUGS.LARGE;
+    }
+
+    // Player definition
+    let player = {
+      x: GAME_WIDTH / 2,
+      y: GAME_HEIGHT / 2,
+      width: 30,
+      height: 30,
+      speed: 3,
+      color: 'blue',
+      direction: 0,
+      canShoot: true,
+      lastShot: 0,
+      health: 100,
+      shield: 0,           // Shield bar starts at 0
+      inventory: {
+        walls: 0,          // Start with 0 walls
+        ammo: 15,
+        gun: GUNS.PISTOL,
+        bombs: 0,
+        chugjug: null
+      },
+      miningCooldown: 0,
+    };
+
+    // Storm setup
+    let storm = {
+      x: 0,
+      y: 0,
+      width: GAME_WIDTH,
+      height: GAME_HEIGHT,
+      shrinkRate: 0.05,
+      warning: 120,
+      timer: 0
+    };
+
+    // Static objects
+    const trees = [];
+    const chests = [];
+    const walls = [];
+
+    // Enemies with shooting and building capabilities
+    const enemies = [];
+
+    // Bullets fired by anyone
+    const bullets = [];
+
+    // Explosions (for RPG and bombs)
+    const explosions = [];
+
+    // Bomb projectiles (thrown bombs)
+    const bombs = [];
+
+    // Random integer helper
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    // Generate random chest colors for visual variety
+    function chestTopColor() {
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+      return colors[randomInt(0, colors.length)];
+    }
+
+    // Populate trees and chests
+    for (let i = 0; i < 25; i++) {
+      trees.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        size: 30,
+        color: 'darkgreen',
+        mined: false
+      });
+    }
+
+    for (let i = 0; i < 10; i++) {
+      // Some chests hold bombs or chug jugs with low probability
+      let hasBomb = Math.random() < 0.1;
+      let hasChugJug = !hasBomb && (Math.random() < 0.15);
+      chests.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        size: 25,
+        color: chestTopColor(),
+        opened: false,
+        ammo: randomInt(5, 15),
+        walls: randomInt(1, 3),
+        gun: getRandomGun(),
+        bomb: hasBomb ? 1 : 0,          // 1 bomb in chest if hasBomb true
+        chugjug: hasChugJug ? getRandomChugJug() : null
+      });
+    }
+
+    // Initialize enemies: infinite ammo & walls, random gun, less aggressive
+    for (let i = 0; i < 5; i++) {
+      enemies.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        width: 25,
+        height: 25,
+        color: 'red',
+        speed: 1,
+        direction: Math.random() * 2 * Math.PI,
+        health: 40,
+        canShoot: true,
+        shootCooldown: 2000 + Math.random() * 2000,
+        lastShot: 0,
+        inventory: {
+          walls: Infinity,
+          ammo: Infinity,
+          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
+        },
+        moveTimer: 0,
+      });
+    }
+
+    // --- Change: use R key to shoot ---
+    let shooting = false;
+    window.addEventListener('keydown', e => {
+      if (e.key.toLowerCase() === 'r') shooting = true;
+      if (e.key === 'f' && player.inventory.bombs > 0) {
+        throwBomb();
+      }
+      if (e.key === 'q' && player.inventory.chugjug) {
+        useChugJug();
+      }
+      if (e.key === ' ') {
+        placeWall();
+      }
+    });
+    window.addEventListener('keyup', e => {
+      if (e.key.toLowerCase() === 'r') {
+        shooting = false;
+        player.canShoot = true;  // Reset shoot cooldown on releasing R
+      }
+    });
+
+    // Remove old mouse shoot event handlers to avoid conflict:
+    // No mousedown/mouseup for shooting now.
+
+    // Collision helpers
+    function rectCollision(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function circleRectCollision(cx, cy, radius, rect) {
+      let testX = cx;
+      let testY = cy;
+
+      if (cx < rect.x) testX = rect.x;
+      else if (cx > rect.x + rect.width) testX = rect.x + rect.width;
+      if (cy < rect.y) testY = rect.y;
+      else if (cy > rect.y + rect.height) testY = rect.y + rect.height;
+
+      let distX = cx - testX;
+      let distY = cy - testY;
+      let distance = Math.sqrt(distX * distX + distY * distY);
+
+      return distance <= radius;
+    }
+
+    // Bullets damage walls and break them
+    function damageWallAt(x, y, damage) {
+      for (let i = 0; i < walls.length; i++) {
+        const w = walls[i];
+        if (circleRectCollision(x, y, 4, w)) {
+          w.hp -= damage;
+          if (w.hp <= 0) walls.splice(i, 1);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Explosion damage
+    function doExplosion(x, y, radius, damage, source) {
+      let dx = player.x + player.width / 2 - x;
+      let dy = player.y + player.height / 2 - y;
+      let dist = Math.hypot(dx, dy);
+      if (dist < radius) {
+        let dmg = damage * (1 - dist / radius);
+        applyDamageToPlayer(dmg);
+      }
+
+      for (let i = walls.length - 1; i >= 0; i--) {
+        let w = walls[i];
+        let cx = w.x + w.width / 2;
+        let cy = w.y + w.height / 2;
+        let d = Math.hypot(cx - x, cy - y);
+        if (d < radius) {
+          let dmg = damage * (1 - d / radius);
+          w.hp -= dmg;
+          if (w.hp <= 0) walls.splice(i, 1);
+        }
+      }
+
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        let ex = e.x + e.width / 2;
+        let ey = e.y + e.height / 2;
+        let d = Math.hypot(ex - x, ey - y);
+        if (d < radius) {
+          let dmg = damage * (1 - d / radius);
+          e.health -= dmg;
+          if (e.health <= 0) enemies.splice(i, 1);
+        }
+      }
+
+      explosions.push({ x, y, radius, alpha: 1, maxRadius: radius });
+    }
+
+    // Apply damage to player with shield absorption
+    function applyDamageToPlayer(amount) {
+      if (player.shield >= amount) {
+        player.shield -= amount;
+      } else {
+        let leftover = amount - player.shield;
+        player.shield = 0;
+        player.health -= leftover;
+        if (player.health < 0) player.health = 0;
+      }
+    }
+
+    // Place wall
+    function placeWall() {
+      if (player.inventory.walls <= 0) return;
+      let wallWidth = 30;
+      let wallHeight = 10;
+      let wallX = player.x + player.width / 2 + Math.cos(player.direction) * 30 - wallWidth / 2;
+      let wallY = player.y + player.height / 2 + Math.sin(player.direction) * 30 - wallHeight / 2;
+      if (
+        wallX >= storm.x && wallX + wallWidth <= storm.x + storm.width &&
+        wallY >= storm.y && wallY + wallHeight <= storm.y + storm.height
+      ) {
+        let newWall = { x: wallX, y: wallY, width: wallWidth, height: wallHeight, hp: 40 };
+        let collides = walls.some(w => rectCollision(newWall, w)) ||
+          trees.some(t => rectCollision(newWall, { x: t.x, y: t.y, width: t.size, height: t.size })) ||
+          chests.some(c => rectCollision(newWall, { x: c.x, y: c.y, width: c.size, height: c.size })) ||
+          enemies.some(e => rectCollision(newWall, e)) ||
+          rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height });
+
+        if (!collides) {
+          walls.push(newWall);
+          player.inventory.walls--;
+        }
+      }
+    }
+
+    // Throw bomb
+    function throwBomb() {
+      if (player.inventory.bombs <= 0) return;
+      const angle = player.direction;
+      bombs.push({
+        x: player.x + player.width / 2,
+        y: player.y + player.height / 2,
+        vx: Math.cos(angle) * 7,
+        vy: Math.sin(angle) * 7,
+        radius: 8,
+        damage: 50,
+        explosionRadius: 80,
+        timer: 300,
+      });
+      player.inventory.bombs--;
+    }
+
+    // Use chug jug
+    function useChugJug() {
+      let c = player.inventory.chugjug;
+      if (!c) return;
+      player.health += c.healHealth;
+      player.shield += c.healShield;
+      if (player.health > 100) player.health = 100;
+      if (player.shield > 100) player.shield = 100;
+      player.inventory.chugjug = null;
+    }
+
+    // Player & AI update
+    function update() {
+      let dx = 0, dy = 0;
+      if (keys['w'] || keys['arrowup']) dy -= 1;
+      if (keys['s'] || keys['arrowdown']) dy += 1;
+      if (keys['a'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['arrowright']) dx += 1;
+      if (dx !== 0 && dy !== 0) {
+        dx *= Math.sqrt(0.5);
+        dy *= Math.sqrt(0.5);
+      }
+      player.x += dx * player.speed;
+      player.y += dy * player.speed;
+
+      if (mousePos) {
+        player.direction = Math.atan2(mousePos.y - player.y, mousePos.x - player.x);
+      }
+
+      if (keys['e'] && player.miningCooldown <= 0) {
+        for (const tree of trees) {
+          if (!tree.mined) {
+            const treeRect = { x: tree.x, y: tree.y, width: tree.size, height: tree.size };
+            const playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
+            if (rectCollision(playerRect, treeRect)) {
+              tree.mined = true;
+              player.inventory.walls += 3;
+              player.miningCooldown = 30;
+              break;
+            }
+          }
+        }
+      }
+      if (player.miningCooldown > 0) player.miningCooldown--;
+
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < 0 || b.x > GAME_WIDTH || b.y < 0 || b.y > GAME_HEIGHT) {
+          bullets.splice(i, 1);
+          continue;
+        }
+        if (damageWallAt(b.x, b.y, b.damage)) {
+          bullets.splice(i, 1);
+          continue;
+        }
+        if (b.shooter === 'player') {
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            let e = enemies[j];
+            if (circleRectCollision(b.x, b.y, b.radius, e)) {
+              e.health -= b.damage;
+              bullets.splice(i, 1);
+              if (e.health <= 0) enemies.splice(j, 1);
+              if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'player');
+              break;
+            }
+          }
+        } else if (b.shooter === 'enemy') {
+          let playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
+          if (circleRectCollision(b.x, b.y, b.radius, playerRect)) {
+            applyDamageToPlayer(b.damage);
+            bullets.splice(i, 1);
+            if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'enemy');
+          }
+        }
+      }
+      for (let i = bombs.length - 1; i >= 0; i--) {
+        let bomb = bombs[i];
+        bomb.x += bomb.vx;
+        bomb.y += bomb.vy;
+        bomb.vx *= 0.95;
+        bomb.vy *= 0.95;
+        bomb.timer--;
+        let hitWall = walls.some(w => circleRectCollision(bomb.x, bomb.y, bomb.radius, w));
+        if (bomb.timer <= 0 || hitWall) {
+          doExplosion(bomb.x, bomb.y, bomb.explosionRadius, bomb.damage, 'player');
+          bombs.splice(i, 1);
+        }
+      }
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        let e = explosions[i];
+        e.alpha -= 0.03;
+        e.radius += 2;
+        if (e.alpha <= 0) explosions.splice(i, 1);
+      }
+
+      enemies.forEach(e => {
+        e.moveTimer = (e.moveTimer || 0) + 1;
+        if (e.moveTimer > 120) {
+          e.direction = Math.random() * 2 * Math.PI;
+          e.moveTimer = 0;
+        }
+
+        let nx = e.x + Math.cos(e.direction) * e.speed;
+        let ny = e.y + Math.sin(e.direction) * e.speed;
+        let enemyRect = { x: nx, y: ny, width: e.width, height: e.height };
+        const inStorm = nx >= storm.x && nx + e.width <= storm.x + storm.width &&
+          ny >= storm.y && ny + e.height <= storm.y + storm.height;
+        const hitsWall = walls.some(w => rectCollision(enemyRect, w));
+        if (inStorm && !hitsWall) {
+          e.x = nx;
+          e.y = ny;
+        } else {
+          e.direction = Math.random() * 2 * Math.PI;
+        }
+
+        e.direction = Math.atan2(player.y - e.y, player.x - e.x);
+
+        if (e.canShoot && e.inventory.ammo > 0) {
+          if (Math.random() < 0.007) {
+            shootGun(e, e.inventory.gun, 'enemy');
+            e.canShoot = false;
+            e.lastShot = Date.now();
+          }
+        } else if (!e.canShoot) {
+          if (Date.now() - e.lastShot > e.shootCooldown) {
+            e.canShoot = true;
+          }
+        }
+
+        if (e.inventory.walls > 0 && Math.random() < 0.002) {
+          let wallW = 30, wallH = 10;
+          let wx = e.x + e.width / 2 + Math.cos(e.direction) * 30 - wallW / 2;
+          let wy = e.y + e.height / 2 + Math.sin(e.direction) * 30 - wallH / 2;
+          if (
+            wx >= storm.x && wx + wallW <= storm.x + storm.width &&
+            wy >= storm.y && wy + wallH <= storm.y + storm.height
+          ) {
+            let newWall = { x: wx, y: wy, width: wallW, height: wallH, hp: 40 };
+            let collides = walls.some(w => rectCollision(newWall, w)) ||
+              trees.some(t => rectCollision(newWall, { x: t.x, y: t.y, width: t.size, height: t.size })) ||
+              chests.some(c => rectCollision(newWall, { x: c.x, y: c.y, width: c.size, height: c.size })) ||
+              rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height }) ||
+              enemies.some(other => other !== e && rectCollision(newWall, other));
+            if (!collides) {
+              walls.push(newWall);
+            }
+          }
+        }
+        let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
+        if (distToPlayer < 40) {
+          applyDamageToPlayer(0.1);
+        }
+      });
+
+      // Player shooting logic replaced to work only with R key:
+      if (shooting && player.inventory.ammo > 0) {
+        if (player.canShoot) {
+          shootGun(player, player.inventory.gun, 'player');
+          player.canShoot = false;
+          player.lastShot = Date.now();
+          if (player.inventory.ammo !== Infinity) player.inventory.ammo--;
+        } else if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
+          player.canShoot = true;
+        }
+      } else if (!player.canShoot) {
+        if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
+          player.canShoot = true;
+        }
+      }
+
+      storm.timer++;
+      if (storm.timer > storm.warning) {
+        storm.x += storm.shrinkRate;
+        storm.y += storm.shrinkRate;
+        storm.width -= storm.shrinkRate * 2;
+        storm.height -= storm.shrinkRate * 2;
+        if (storm.width < 200) {
+          storm.width = 200;
+          storm.height = 150;
+        }
+      }
+
+      if (player.x < storm.x || player.x + player.width > storm.x + storm.width ||
+        player.y < storm.y || player.y + player.height > storm.y + storm.height) {
+        applyDamageToPlayer(1);
+      }
+    }
+
+    // Shoot gun function (player or enemy)
+    function shootGun(shooter, gun, who) {
+      if (!shooter || !gun) return;
+      const angle = shooter.direction;
+      const originX = shooter.x + (shooter.width ? shooter.width / 2 : 15);
+      const originY = shooter.y + (shooter.height ? shooter.height / 2 : 15);
+
+      for (let i = 0; i < gun.bulletsPerShot; i++) {
+        let spreadAngle = angle;
+        if (gun.bulletsPerShot > 1) {
+          spreadAngle = angle + (i - Math.floor(gun.bulletsPerShot / 2)) * gun.spread;
+        }
+        bullets.push({
+          x: originX + Math.cos(spreadAngle) * 20,
+          y: originY + Math.sin(spreadAngle) * 20,
+          vx: Math.cos(spreadAngle) * gun.bulletSpeed,
+          vy: Math.sin(spreadAngle) * gun.bulletSpeed,
+          radius: 5,
+          damage: gun.damage,
+          shooter: who,
+          explosive: gun.explosive || false,
+          explosionRadius: gun.explosionRadius || 0
+        });
+      }
+    }
+
+    // Check player picking chests
+    function checkChestPickup() {
+      chests.forEach(c => {
+        if (!c.opened) {
+          const playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
+          const chestRect = { x: c.x, y: c.y, width: c.size, height: c.size };
+          if (rectCollision(playerRect, chestRect)) {
+            c.opened = true;
+            player.inventory.ammo += c.ammo;
+            player.inventory.walls += c.walls;
+            player.inventory.gun = c.gun;
+            if (c.bomb > 0) player.inventory.bombs += c.bomb;
+            if (c.chugjug) player.inventory.chugjug = c.chugjug;
+          }
+        }
+      });
+    }
+
+    // Draw all elements on screen
+    function draw() {
+      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+      ctx.fillStyle = 'rgba(128,0,128,0.6)';
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      ctx.clearRect(storm.x, storm.y, storm.width, storm.height);
+
+      trees.forEach(t => {
+        ctx.fillStyle = t.mined ? '#556b2f' : t.color;
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y + t.size);
+        ctx.lineTo(t.x + t.size / 2, t.y);
+        ctx.lineTo(t.x + t.size, t.y + t.size);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      chests.forEach(c => {
+        ctx.fillStyle = c.opened ? 'gray' : '#654321';
+        ctx.fillRect(c.x, c.y, c.size, c.size);
+        if (!c.opened) {
+          ctx.fillStyle = c.color;
+          ctx.fillRect(c.x + 3, c.y, c.size - 6, 6);
+        }
+        ctx.strokeStyle = 'black';
+        ctx.strokeRect(c.x, c.y, c.size, c.size);
+      });
+
+      walls.forEach(w => {
+        ctx.fillStyle = 'saddlebrown';
+        ctx.fillRect(w.x, w.y, w.width, w.height);
+        ctx.fillStyle = 'red';
+        let hpRatio = w.hp / 40;
+        ctx.fillRect(w.x, w.y - 5, w.width * hpRatio, 3);
+        ctx.strokeStyle = 'black';
+        ctx.strokeRect(w.x, w.y - 5, w.width, 3);
+      });
+
+      ctx.save();
+      ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+      ctx.rotate(player.direction);
+      ctx.fillStyle = player.color;
+      ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, -5, player.width / 2, 10);
+      ctx.restore();
+
+      bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.fillStyle = b.explosive ? 'orange' : 'black';
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      bombs.forEach(bomb => {
+        ctx.beginPath();
+        ctx.fillStyle = 'black';
+        ctx.arc(bomb.x, bomb.y, bomb.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      enemies.forEach(e => {
+        ctx.fillStyle = e.color;
+        ctx.fillRect(e.x, e.y, e.width, e.height);
+        ctx.fillStyle = 'red';
+        ctx.fillRect(e.x, e.y - 6, e.width * (e.health / 40), 3);
+        ctx.fillStyle = 'white';
+        ctx.font = '12px Arial';
+        ctx.fillText(e.inventory.gun.name.substring(0, 3), e.x, e.y - 10);
+      });
+
+      explosions.forEach(expl => {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(255,165,0,${expl.alpha.toFixed(2)})`;
+        ctx.lineWidth = 4;
+        ctx.arc(expl.x, expl.y, expl.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      ctx.fillStyle = 'black';
+      ctx.fillRect(10, 10, 104, 24);
+      ctx.fillStyle = 'red';
+      ctx.fillRect(12, 12, player.health, 20);
+      ctx.fillStyle = 'blue';
+      ctx.fillRect(12, 12, player.shield, 20);
+      ctx.strokeStyle = 'white';
+      ctx.strokeRect(10, 10, 104, 24);
+
+      ctx.fillStyle = 'white';
+      ctx.font = '16px Arial';
+      ctx.fillText(`Walls: ${player.inventory.walls}`, 10, 50);
+      ctx.fillText(`Ammo: ${player.inventory.ammo === Infinity ? '∞' : player.inventory.ammo}`, 10, 70);
+      ctx.fillText(`Bombs: ${player.inventory.bombs}`, 10, 90);
+      ctx.fillText(`Gun: ${player.inventory.gun.name}`, 10, 110);
+      ctx.fillText(`Chug Jug: ${player.inventory.chugjug ? player.inventory.chugjug.name : 'None'}`, 10, 130);
+
+      ctx.fillStyle = 'white';
+      ctx.font = '14px Arial';
+      ctx.fillText('Press E near tree to mine walls (3 per tree)', 10, GAME_HEIGHT - 35);
+      ctx.fillText('Space: Build wall, R: Shoot, F: Throw bomb, Q: Use chug jug', 10, GAME_HEIGHT - 15);
+    }
+
+    function drawGameOver() {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      ctx.fillStyle = 'white';
+      ctx.font = '50px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      ctx.font = '24px Arial';
+      ctx.fillText('Refresh to try again', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40);
+    }
+
+    function drawWin() {
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+      ctx.fillStyle = 'limegreen';
+      ctx.font = '60px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Victory!', GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      ctx.font = '24px Arial';
+      ctx.fillText('You eliminated all enemies.', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40);
+    }
+
+    let mousePos = null;
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mousePos = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    });
+
+    function gameLoop() {
+      if (player.health > 0) {
+        update();
+        checkChestPickup();
+        if (enemies.length === 0) {
+          drawWin();
+        } else {
+          draw();
+          drawMinimap();
+          requestAnimationFrame(gameLoop);
+        }
+      } else {
+        drawGameOver();
+      }
+    }
+
+    function drawMinimap() {
+      mapCtx.clearRect(0, 0, minimap.width, minimap.height);
+      mapCtx.fillStyle = '#228B22';
+      mapCtx.fillRect(0, 0, minimap.width, minimap.height);
+
+      const scaleX = minimap.width / GAME_WIDTH;
+      const scaleY = minimap.height / GAME_HEIGHT;
+
+      mapCtx.fillStyle = 'rgba(128, 0, 128, 0.3)';
+      mapCtx.fillRect(storm.x * scaleX, storm.y * scaleY, storm.width * scaleX, storm.height * scaleY);
+
+      trees.forEach(t => {
+        mapCtx.fillStyle = t.mined ? '#556b2f' : 'darkgreen';
+        mapCtx.fillRect(t.x * scaleX, t.y * scaleY, 3, 3);
+      });
+
+      chests.forEach(c => {
+        let col;
+        switch (c.gun.rarity) {
+          case 'common': col = '#cd7f32'; break;
+          case 'rare': col = '#3377ff'; break;
+          case 'legendary': col = '#ffb700'; break;
+          default: col = c.color;
+        }
+        mapCtx.fillStyle = c.opened ? 'gray' : col;
+        mapCtx.fillRect(c.x * scaleX, c.y * scaleY, 3, 3);
+      });
+
+      walls.forEach(w => {
+        mapCtx.fillStyle = 'saddlebrown';
+        mapCtx.fillRect(w.x * scaleX, w.y * scaleY, w.width * scaleX, w.height * scaleY);
+      });
+
+      mapCtx.fillStyle = 'blue';
+      mapCtx.fillRect(player.x * scaleX, player.y * scaleY, 4, 4);
+
+      enemies.forEach(e => {
+        mapCtx.fillStyle = 'red';
+        mapCtx.fillRect(e.x * scaleX, e.y * scaleY, 4, 4);
+      });
+    }
+
+    gameLoop();
+  </script>
+</body>
+
+</html>
 
