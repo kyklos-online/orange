@@ -1,10 +1,8 @@
-orange game notes   progress=done
-fortnite
 <!DOCTYPE html>
 <html>
 
 <head>
-  <title>Mini Fortnite Top-Down</title>
+  <title>Mini Fortnite Top-Down with Water</title>
   <style>
     body {
       margin: 0;
@@ -37,12 +35,19 @@ fortnite
   <canvas id="minimap" width="150" height="150"></canvas>
 
   <script>
+    // Canvas contexts
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-
     const minimap = document.getElementById('minimap');
     const mapCtx = minimap.getContext('2d');
 
+    // Constants
+    const GAME_WIDTH = canvas.width;
+    const GAME_HEIGHT = canvas.height;
+    const WATER_DAMAGE = 0.5; // damage per frame in water
+    const MAX_WATER_DEPTH = 80; // max water depth size for lakes/rivers
+
+    // Keyboard and mouse state
     const keys = {};
     window.addEventListener('keydown', e => {
       keys[e.key.toLowerCase()] = true;
@@ -51,10 +56,16 @@ fortnite
       keys[e.key.toLowerCase()] = false;
     });
 
-    const GAME_WIDTH = canvas.width;
-    const GAME_HEIGHT = canvas.height;
+    let mousePos = null;
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mousePos = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    });
 
-    // Guns config
+    // Guns config (same as original)
     const GUNS = {
       PISTOL: { name: "Pistol", fireRate: 300, bulletsPerShot: 1, spread: 0, damage: 15, bulletSpeed: 7, rarity: 'common' },
       AK47: { name: "AK-47", fireRate: 100, bulletsPerShot: 1, spread: 0, damage: 12, bulletSpeed: 9, rarity: 'rare', automatic: true },
@@ -62,28 +73,39 @@ fortnite
       RPG: { name: "RPG", fireRate: 1500, bulletsPerShot: 1, spread: 0, damage: 30, bulletSpeed: 5, rarity: 'legendary', explosive: true, explosionRadius: 50 }
     };
 
-    // Chug jugs config
+    // Chug jugs config (same as original)
     const CHUGJUGS = {
       SMALL: { name: 'Small', healHealth: 20, healShield: 10 },
       MEDIUM: { name: 'Medium', healHealth: 50, healShield: 25 },
       LARGE: { name: 'Large', healHealth: 100, healShield: 50 }
     };
 
-    // Helper: weighted random gun selection for loot, bombs & chugjug rarer
+    // Weighted random gun selection helper (same as original)
     function getRandomGun() {
       let roll = Math.random();
-      if (roll < 0.67) return GUNS.PISTOL;    // 67% pistol
-      else if (roll < 0.85) return GUNS.AK47; // 18% AK-47
-      else if (roll < 0.95) return GUNS.SHOTGUN; // 10% shotgun
-      else return GUNS.RPG;                   // 5% RPG
+      if (roll < 0.67) return GUNS.PISTOL;
+      else if (roll < 0.85) return GUNS.AK47;
+      else if (roll < 0.95) return GUNS.SHOTGUN;
+      else return GUNS.RPG;
     }
 
-    // Helper: random chug jug
+    // Random chug jug helper (same as original)
     function getRandomChugJug() {
       let roll = Math.random();
       if (roll < 0.6) return CHUGJUGS.SMALL;
       else if (roll < 0.9) return CHUGJUGS.MEDIUM;
       else return CHUGJUGS.LARGE;
+    }
+
+    // Random integer helper
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min)) + min;
+    }
+
+    // Helper to generate random chest colors
+    function chestTopColor() {
+      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+      return colors[randomInt(0, colors.length)];
     }
 
     // Player definition
@@ -98,9 +120,9 @@ fortnite
       canShoot: true,
       lastShot: 0,
       health: 100,
-      shield: 0,           // Shield bar starts at 0
+      shield: 0,
       inventory: {
-        walls: 0,          // Start with 0 walls
+        walls: 0,
         ammo: 15,
         gun: GUNS.PISTOL,
         bombs: 0,
@@ -109,7 +131,7 @@ fortnite
       miningCooldown: 0,
     };
 
-    // Storm setup
+    // Storm (same as original)
     let storm = {
       x: 0,
       y: 0,
@@ -120,9 +142,11 @@ fortnite
       timer: 0
     };
 
-    // Static objects
+    // Trees and chests
     const trees = [];
     const chests = [];
+
+    // Walls array with new property 'isBridge'
     const walls = [];
 
     // Enemies with shooting and building capabilities
@@ -137,70 +161,15 @@ fortnite
     // Bomb projectiles (thrown bombs)
     const bombs = [];
 
-    // Random integer helper
-    function randomInt(min, max) {
-      return Math.floor(Math.random() * (max - min)) + min;
-    }
+    // Water bodies: array of water zones (rivers and lakes)
+    // Each water zone has x, y, width, height, type (river or lake)
+    const waterZones = [];
 
-    // Generate random chest colors for visual variety
-    function chestTopColor() {
-      const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
-      return colors[randomInt(0, colors.length)];
-    }
+    // Bridges - array paralleling water zones with bridge rectangles
+    // Bridge rectangles allow passage over water without damage
+    const bridges = [];
 
-    // Populate trees and chests
-    for (let i = 0; i < 25; i++) {
-      trees.push({
-        x: randomInt(20, GAME_WIDTH - 40),
-        y: randomInt(20, GAME_HEIGHT - 40),
-        size: 30,
-        color: 'darkgreen',
-        mined: false
-      });
-    }
-
-    for (let i = 0; i < 10; i++) {
-      // Some chests hold bombs or chug jugs with low probability
-      let hasBomb = Math.random() < 0.1;
-      let hasChugJug = !hasBomb && (Math.random() < 0.15);
-      chests.push({
-        x: randomInt(20, GAME_WIDTH - 40),
-        y: randomInt(20, GAME_HEIGHT - 40),
-        size: 25,
-        color: chestTopColor(),
-        opened: false,
-        ammo: randomInt(5, 15),
-        walls: randomInt(1, 3),
-        gun: getRandomGun(),
-        bomb: hasBomb ? 1 : 0,          // 1 bomb in chest if hasBomb true
-        chugjug: hasChugJug ? getRandomChugJug() : null
-      });
-    }
-
-    // Initialize enemies: infinite ammo & walls, random gun, less aggressive
-    for (let i = 0; i < 5; i++) {
-      enemies.push({
-        x: randomInt(20, GAME_WIDTH - 40),
-        y: randomInt(20, GAME_HEIGHT - 40),
-        width: 25,
-        height: 25,
-        color: 'red',
-        speed: 1,
-        direction: Math.random() * 2 * Math.PI,
-        health: 40,
-        canShoot: true,
-        shootCooldown: 2000 + Math.random() * 2000,
-        lastShot: 0,
-        inventory: {
-          walls: Infinity,
-          ammo: Infinity,
-          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
-        },
-        moveTimer: 0,
-      });
-    }
-
-    // --- Change: use R key to shoot ---
+    // Random chance for shooting
     let shooting = false;
     window.addEventListener('keydown', e => {
       if (e.key.toLowerCase() === 'r') shooting = true;
@@ -217,12 +186,9 @@ fortnite
     window.addEventListener('keyup', e => {
       if (e.key.toLowerCase() === 'r') {
         shooting = false;
-        player.canShoot = true;  // Reset shoot cooldown on releasing R
+        player.canShoot = true;
       }
     });
-
-    // Remove old mouse shoot event handlers to avoid conflict:
-    // No mousedown/mouseup for shooting now.
 
     // Collision helpers
     function rectCollision(a, b) {
@@ -248,6 +214,30 @@ fortnite
       let distance = Math.sqrt(distX * distX + distY * distY);
 
       return distance <= radius;
+    }
+
+    // Is point inside any water zone except on a bridge? Used to apply damage
+    function isInWaterNoBridge(x, y, width = 1, height = 1) {
+      // Check if inside a bridge first (safe)
+      for (const br of bridges) {
+        if (rectCollision({ x, y, width, height }, br)) return false;
+      }
+      // Else check if inside water zone
+      for (const w of waterZones) {
+        if (rectCollision({ x, y, width, height }, w)) return true;
+      }
+      return false;
+    }
+
+    // AI water avoidance check: checks if place is inside water but not on bridge
+    function isWaterBlocked(rect) {
+      for (const br of bridges) {
+        if (rectCollision(rect, br)) return false;
+      }
+      for (const w of waterZones) {
+        if (rectCollision(rect, w)) return true;
+      }
+      return false;
     }
 
     // Bullets damage walls and break them
@@ -319,22 +309,64 @@ fortnite
       let wallHeight = 10;
       let wallX = player.x + player.width / 2 + Math.cos(player.direction) * 30 - wallWidth / 2;
       let wallY = player.y + player.height / 2 + Math.sin(player.direction) * 30 - wallHeight / 2;
+
       if (
         wallX >= storm.x && wallX + wallWidth <= storm.x + storm.width &&
         wallY >= storm.y && wallY + wallHeight <= storm.y + storm.height
       ) {
-        let newWall = { x: wallX, y: wallY, width: wallWidth, height: wallHeight, hp: 40 };
+        let newWall = { x: wallX, y: wallY, width: wallWidth, height: wallHeight, hp: 40, isBridge: false };
+        let wallRect = newWall;
+
         let collides = walls.some(w => rectCollision(newWall, w)) ||
           trees.some(t => rectCollision(newWall, { x: t.x, y: t.y, width: t.size, height: t.size })) ||
           chests.some(c => rectCollision(newWall, { x: c.x, y: c.y, width: c.size, height: c.size })) ||
           enemies.some(e => rectCollision(newWall, e)) ||
           rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height });
 
+        // Check if placing wall on water edge - if so treat as a bridge (safe)
+        const onWaterEdge = waterZones.some(water => {
+          // Check if wall rectangle is touching water border (within 5 pixels)
+          let touchingX = (wallRect.x + wallRect.width > water.x - 5 && wallRect.x < water.x + water.width + 5);
+          let touchingY = (wallRect.y + wallRect.height > water.y - 5 && wallRect.y < water.y + water.height + 5);
+          let insideWater = rectCollision(wallRect, water);
+          // It's considered "on water edge" if it is at the border (touching but not fully inside water)
+          return (touchingX && touchingY && !insideWater);
+        });
+
         if (!collides) {
+          newWall.isBridge = onWaterEdge;
           walls.push(newWall);
+
+          // If wall is bridge and touching water, add or extend bridges on that segment
+          if (onWaterEdge) {
+            addBridgeForWall(newWall);
+          }
+
           player.inventory.walls--;
         }
       }
+    }
+
+    // Add or update bridges array based on wall placement on water edge
+    function addBridgeForWall(wall) {
+      // Check water zone(s) intersecting with this wall
+      waterZones.forEach(water => {
+        // If wall is close to water zone border (within 10 pixels)
+        let nearX = (wall.x + wall.width > water.x - 10 && wall.x < water.x + water.width + 10);
+        let nearY = (wall.y + wall.height > water.y - 10 && wall.y < water.y + water.height + 10);
+        if (nearX && nearY) {
+          // Add a bridge rectangle where this wall is
+          let bridgeRect = {
+            x: wall.x,
+            y: wall.y,
+            width: wall.width,
+            height: wall.height
+          };
+          // Avoid duplicate bridges - check close rectangles and merge
+          // We'll just add it simply (merging complex) since walls are small
+          bridges.push(bridgeRect);
+        }
+      });
     }
 
     // Throw bomb
@@ -363,185 +395,6 @@ fortnite
       if (player.health > 100) player.health = 100;
       if (player.shield > 100) player.shield = 100;
       player.inventory.chugjug = null;
-    }
-
-    // Player & AI update
-    function update() {
-      let dx = 0, dy = 0;
-      if (keys['w'] || keys['arrowup']) dy -= 1;
-      if (keys['s'] || keys['arrowdown']) dy += 1;
-      if (keys['a'] || keys['arrowleft']) dx -= 1;
-      if (keys['d'] || keys['arrowright']) dx += 1;
-      if (dx !== 0 && dy !== 0) {
-        dx *= Math.sqrt(0.5);
-        dy *= Math.sqrt(0.5);
-      }
-      player.x += dx * player.speed;
-      player.y += dy * player.speed;
-
-      if (mousePos) {
-        player.direction = Math.atan2(mousePos.y - player.y, mousePos.x - player.x);
-      }
-
-      if (keys['e'] && player.miningCooldown <= 0) {
-        for (const tree of trees) {
-          if (!tree.mined) {
-            const treeRect = { x: tree.x, y: tree.y, width: tree.size, height: tree.size };
-            const playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
-            if (rectCollision(playerRect, treeRect)) {
-              tree.mined = true;
-              player.inventory.walls += 3;
-              player.miningCooldown = 30;
-              break;
-            }
-          }
-        }
-      }
-      if (player.miningCooldown > 0) player.miningCooldown--;
-
-      for (let i = bullets.length - 1; i >= 0; i--) {
-        let b = bullets[i];
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < 0 || b.x > GAME_WIDTH || b.y < 0 || b.y > GAME_HEIGHT) {
-          bullets.splice(i, 1);
-          continue;
-        }
-        if (damageWallAt(b.x, b.y, b.damage)) {
-          bullets.splice(i, 1);
-          continue;
-        }
-        if (b.shooter === 'player') {
-          for (let j = enemies.length - 1; j >= 0; j--) {
-            let e = enemies[j];
-            if (circleRectCollision(b.x, b.y, b.radius, e)) {
-              e.health -= b.damage;
-              bullets.splice(i, 1);
-              if (e.health <= 0) enemies.splice(j, 1);
-              if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'player');
-              break;
-            }
-          }
-        } else if (b.shooter === 'enemy') {
-          let playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
-          if (circleRectCollision(b.x, b.y, b.radius, playerRect)) {
-            applyDamageToPlayer(b.damage);
-            bullets.splice(i, 1);
-            if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'enemy');
-          }
-        }
-      }
-      for (let i = bombs.length - 1; i >= 0; i--) {
-        let bomb = bombs[i];
-        bomb.x += bomb.vx;
-        bomb.y += bomb.vy;
-        bomb.vx *= 0.95;
-        bomb.vy *= 0.95;
-        bomb.timer--;
-        let hitWall = walls.some(w => circleRectCollision(bomb.x, bomb.y, bomb.radius, w));
-        if (bomb.timer <= 0 || hitWall) {
-          doExplosion(bomb.x, bomb.y, bomb.explosionRadius, bomb.damage, 'player');
-          bombs.splice(i, 1);
-        }
-      }
-      for (let i = explosions.length - 1; i >= 0; i--) {
-        let e = explosions[i];
-        e.alpha -= 0.03;
-        e.radius += 2;
-        if (e.alpha <= 0) explosions.splice(i, 1);
-      }
-
-      enemies.forEach(e => {
-        e.moveTimer = (e.moveTimer || 0) + 1;
-        if (e.moveTimer > 120) {
-          e.direction = Math.random() * 2 * Math.PI;
-          e.moveTimer = 0;
-        }
-
-        let nx = e.x + Math.cos(e.direction) * e.speed;
-        let ny = e.y + Math.sin(e.direction) * e.speed;
-        let enemyRect = { x: nx, y: ny, width: e.width, height: e.height };
-        const inStorm = nx >= storm.x && nx + e.width <= storm.x + storm.width &&
-          ny >= storm.y && ny + e.height <= storm.y + storm.height;
-        const hitsWall = walls.some(w => rectCollision(enemyRect, w));
-        if (inStorm && !hitsWall) {
-          e.x = nx;
-          e.y = ny;
-        } else {
-          e.direction = Math.random() * 2 * Math.PI;
-        }
-
-        e.direction = Math.atan2(player.y - e.y, player.x - e.x);
-
-        if (e.canShoot && e.inventory.ammo > 0) {
-          if (Math.random() < 0.007) {
-            shootGun(e, e.inventory.gun, 'enemy');
-            e.canShoot = false;
-            e.lastShot = Date.now();
-          }
-        } else if (!e.canShoot) {
-          if (Date.now() - e.lastShot > e.shootCooldown) {
-            e.canShoot = true;
-          }
-        }
-
-        if (e.inventory.walls > 0 && Math.random() < 0.002) {
-          let wallW = 30, wallH = 10;
-          let wx = e.x + e.width / 2 + Math.cos(e.direction) * 30 - wallW / 2;
-          let wy = e.y + e.height / 2 + Math.sin(e.direction) * 30 - wallH / 2;
-          if (
-            wx >= storm.x && wx + wallW <= storm.x + storm.width &&
-            wy >= storm.y && wy + wallH <= storm.y + storm.height
-          ) {
-            let newWall = { x: wx, y: wy, width: wallW, height: wallH, hp: 40 };
-            let collides = walls.some(w => rectCollision(newWall, w)) ||
-              trees.some(t => rectCollision(newWall, { x: t.x, y: t.y, width: t.size, height: t.size })) ||
-              chests.some(c => rectCollision(newWall, { x: c.x, y: c.y, width: c.size, height: c.size })) ||
-              rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height }) ||
-              enemies.some(other => other !== e && rectCollision(newWall, other));
-            if (!collides) {
-              walls.push(newWall);
-            }
-          }
-        }
-        let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
-        if (distToPlayer < 40) {
-          applyDamageToPlayer(0.1);
-        }
-      });
-
-      // Player shooting logic replaced to work only with R key:
-      if (shooting && player.inventory.ammo > 0) {
-        if (player.canShoot) {
-          shootGun(player, player.inventory.gun, 'player');
-          player.canShoot = false;
-          player.lastShot = Date.now();
-          if (player.inventory.ammo !== Infinity) player.inventory.ammo--;
-        } else if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
-          player.canShoot = true;
-        }
-      } else if (!player.canShoot) {
-        if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
-          player.canShoot = true;
-        }
-      }
-
-      storm.timer++;
-      if (storm.timer > storm.warning) {
-        storm.x += storm.shrinkRate;
-        storm.y += storm.shrinkRate;
-        storm.width -= storm.shrinkRate * 2;
-        storm.height -= storm.shrinkRate * 2;
-        if (storm.width < 200) {
-          storm.width = 200;
-          storm.height = 150;
-        }
-      }
-
-      if (player.x < storm.x || player.x + player.width > storm.x + storm.width ||
-        player.y < storm.y || player.y + player.height > storm.y + storm.height) {
-        applyDamageToPlayer(1);
-      }
     }
 
     // Shoot gun function (player or enemy)
@@ -588,14 +441,402 @@ fortnite
       });
     }
 
-    // Draw all elements on screen
+    // Populate trees and chests
+    for (let i = 0; i < 25; i++) {
+      trees.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        size: 30,
+        color: 'darkgreen',
+        mined: false
+      });
+    }
+    for (let i = 0; i < 10; i++) {
+      let hasBomb = Math.random() < 0.1;
+      let hasChugJug = !hasBomb && (Math.random() < 0.15);
+      chests.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        size: 25,
+        color: chestTopColor(),
+        opened: false,
+        ammo: randomInt(5, 15),
+        walls: randomInt(1, 3),
+        gun: getRandomGun(),
+        bomb: hasBomb ? 1 : 0,
+        chugjug: hasChugJug ? getRandomChugJug() : null
+      });
+    }
+
+    // Generate AI enemies - same as original
+    for (let i = 0; i < 5; i++) {
+      enemies.push({
+        x: randomInt(20, GAME_WIDTH - 40),
+        y: randomInt(20, GAME_HEIGHT - 40),
+        width: 25,
+        height: 25,
+        color: 'red',
+        speed: 1,
+        direction: Math.random() * 2 * Math.PI,
+        health: 40,
+        canShoot: true,
+        shootCooldown: 2000 + Math.random() * 2000,
+        lastShot: 0,
+        inventory: {
+          walls: Infinity,
+          ammo: Infinity,
+          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
+        },
+        moveTimer: 0,
+      });
+    }
+
+    // Shoot logic controlled with R key
+    // ...
+
+    // GAME WATER GENERATION BEFORE GAME START
+    function generateWaterZones() {
+      // Generate 2 to 4 water zones (rivers and lakes)
+      const zoneCount = randomInt(2, 5);
+
+      for (let i = 0; i < zoneCount; i++) {
+        const isRiver = Math.random() < 0.6; // 60% chance river, else lake
+
+        if (isRiver) {
+          // Generate river - long thin rectangle, horizontal or vertical
+          const horizontal = Math.random() < 0.5;
+          if (horizontal) {
+            const height = randomInt(40, 60);
+            const y = randomInt(50, GAME_HEIGHT - 50 - height);
+            waterZones.push({
+              x: 0,
+              y: y,
+              width: GAME_WIDTH,
+              height: height,
+              type: 'river',
+              horizontal: true
+            });
+
+            // Add some bridges crossing horizontally on river
+            let bridgeCount = randomInt(1, 3);
+            for (let b = 0; b < bridgeCount; b++) {
+              const brWidth = 50;
+              const brHeight = height;
+              const brX = randomInt(50, GAME_WIDTH - brWidth - 50);
+              const brY = y;
+              bridges.push({ x: brX, y: brY, width: brWidth, height: brHeight });
+            }
+          } else {
+            const width = randomInt(40, 60);
+            const x = randomInt(50, GAME_WIDTH - 50 - width);
+            waterZones.push({
+              x: x,
+              y: 0,
+              width: width,
+              height: GAME_HEIGHT,
+              type: 'river',
+              horizontal: false
+            });
+
+            // Vertical bridges
+            let bridgeCount = randomInt(1, 3);
+            for (let b = 0; b < bridgeCount; b++) {
+              const brWidth = width;
+              const brHeight = 50;
+              const brX = x;
+              const brY = randomInt(50, GAME_HEIGHT - brHeight - 50);
+              bridges.push({ x: brX, y: brY, width: brWidth, height: brHeight });
+            }
+          }
+        } else {
+          // Generate lake - roughly square or roundish
+          let size = randomInt(60, MAX_WATER_DEPTH);
+          const x = randomInt(50, GAME_WIDTH - size - 50);
+          const y = randomInt(50, GAME_HEIGHT - size - 50);
+          waterZones.push({
+            x: x,
+            y: y,
+            width: size,
+            height: size,
+            type: 'lake'
+          });
+
+          // Bridge(s) for lake - small bridges on different edges randomly
+          let bridgesCount = randomInt(0, 2);
+          for (let b = 0; b < bridgesCount; b++) {
+            let side = Math.floor(Math.random() * 4);
+            let brSize = 40;
+            let brRect = {};
+            switch (side) {
+              case 0: // top
+                brRect = { x: x + randomInt(0, size - brSize), y: y, width: brSize, height: 10 };
+                break;
+              case 1: // bottom
+                brRect = { x: x + randomInt(0, size - brSize), y: y + size - 10, width: brSize, height: 10 };
+                break;
+              case 2: // left
+                brRect = { x: x, y: y + randomInt(0, size - brSize), width: 10, height: brSize };
+                break;
+              case 3: // right
+                brRect = { x: x + size - 10, y: y + randomInt(0, size - brSize), width: 10, height: brSize };
+                break;
+            }
+            bridges.push(brRect);
+          }
+        }
+      }
+    }
+
+    generateWaterZones();
+
+    // Player & AI update
+    function update() {
+      // Player movement
+      let dx = 0, dy = 0;
+      if (keys['w'] || keys['arrowup']) dy -= 1;
+      if (keys['s'] || keys['arrowdown']) dy += 1;
+      if (keys['a'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['arrowright']) dx += 1;
+      if (dx !== 0 && dy !== 0) {
+        dx *= Math.sqrt(0.5);
+        dy *= Math.sqrt(0.5);
+      }
+      // Try move player with collision on map bounds and attempt water penalty
+      let newPx = player.x + dx * player.speed;
+      let newPy = player.y + dy * player.speed;
+
+      // Clamp within game area
+      newPx = Math.min(Math.max(newPx, 0), GAME_WIDTH - player.width);
+      newPy = Math.min(Math.max(newPy, 0), GAME_HEIGHT - player.height);
+
+      player.x = newPx;
+      player.y = newPy;
+
+      if (mousePos) {
+        player.direction = Math.atan2(mousePos.y - player.y, mousePos.x - player.x);
+      }
+
+      if (keys['e'] && player.miningCooldown <= 0) {
+        for (const tree of trees) {
+          if (!tree.mined) {
+            const treeRect = { x: tree.x, y: tree.y, width: tree.size, height: tree.size };
+            const playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
+            if (rectCollision(playerRect, treeRect)) {
+              tree.mined = true;
+              player.inventory.walls += 3;
+              player.miningCooldown = 30;
+              break;
+            }
+          }
+        }
+      }
+      if (player.miningCooldown > 0) player.miningCooldown--;
+
+      // Apply water damage if player touching water (not on bridge)
+      if (isInWaterNoBridge(player.x, player.y, player.width, player.height)) {
+        applyDamageToPlayer(WATER_DAMAGE);
+      }
+
+      // Bullets updating
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        if (b.x < 0 || b.x > GAME_WIDTH || b.y < 0 || b.y > GAME_HEIGHT) {
+          bullets.splice(i, 1);
+          continue;
+        }
+        if (damageWallAt(b.x, b.y, b.damage)) {
+          bullets.splice(i, 1);
+          continue;
+        }
+        if (b.shooter === 'player') {
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            let e = enemies[j];
+            if (circleRectCollision(b.x, b.y, b.radius, e)) {
+              e.health -= b.damage;
+              bullets.splice(i, 1);
+              if (e.health <= 0) enemies.splice(j, 1);
+              if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'player');
+              break;
+            }
+          }
+        } else if (b.shooter === 'enemy') {
+          let playerRect = { x: player.x, y: player.y, width: player.width, height: player.height };
+          if (circleRectCollision(b.x, b.y, b.radius, playerRect)) {
+            applyDamageToPlayer(b.damage);
+            bullets.splice(i, 1);
+            if (b.explosive) doExplosion(b.x, b.y, b.explosionRadius, b.damage, 'enemy');
+          }
+        }
+      }
+
+      // Bombs update (same as original)
+      for (let i = bombs.length - 1; i >= 0; i--) {
+        let bomb = bombs[i];
+        bomb.x += bomb.vx;
+        bomb.y += bomb.vy;
+        bomb.vx *= 0.95;
+        bomb.vy *= 0.95;
+        bomb.timer--;
+        let hitWall = walls.some(w => circleRectCollision(bomb.x, bomb.y, bomb.radius, w));
+        if (bomb.timer <= 0 || hitWall) {
+          doExplosion(bomb.x, bomb.y, bomb.explosionRadius, bomb.damage, 'player');
+          bombs.splice(i, 1);
+        }
+      }
+
+      // Explosions update (same as original)
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        let e = explosions[i];
+        e.alpha -= 0.03;
+        e.radius += 2;
+        if (e.alpha <= 0) explosions.splice(i, 1);
+      }
+
+      // Enemies update (add water avoidance)
+      enemies.forEach(e => {
+        e.moveTimer = (e.moveTimer || 0) + 1;
+        if (e.moveTimer > 120) {
+          e.direction = Math.random() * 2 * Math.PI;
+          e.moveTimer = 0;
+        }
+
+        let nx = e.x + Math.cos(e.direction) * e.speed;
+        let ny = e.y + Math.sin(e.direction) * e.speed;
+
+        let enemyRect = { x: nx, y: ny, width: e.width, height: e.height };
+        const inStorm = nx >= storm.x && nx + e.width <= storm.x + storm.width &&
+          ny >= storm.y && ny + e.height <= storm.y + storm.height;
+        const hitsWall = walls.some(w => rectCollision(enemyRect, w));
+        const inWater = isWaterBlocked(enemyRect);
+
+        if (inStorm && !hitsWall && !inWater) {
+          e.x = nx;
+          e.y = ny;
+        } else {
+          e.direction = Math.random() * 2 * Math.PI;
+        }
+
+        e.direction = Math.atan2(player.y - e.y, player.x - e.x);
+
+        if (e.canShoot && e.inventory.ammo > 0) {
+          if (Math.random() < 0.007) {
+            shootGun(e, e.inventory.gun, 'enemy');
+            e.canShoot = false;
+            e.lastShot = Date.now();
+          }
+        } else if (!e.canShoot) {
+          if (Date.now() - e.lastShot > e.shootCooldown) {
+            e.canShoot = true;
+          }
+        }
+
+        if (e.inventory.walls > 0 && Math.random() < 0.002) {
+          let wallW = 30, wallH = 10;
+          let wx = e.x + e.width / 2 + Math.cos(e.direction) * 30 - wallW / 2;
+          let wy = e.y + e.height / 2 + Math.sin(e.direction) * 30 - wallH / 2;
+          if (
+            wx >= storm.x && wx + wallW <= storm.x + storm.width &&
+            wy >= storm.y && wy + wallH <= storm.y + storm.height
+          ) {
+            let newWall = { x: wx, y: wy, width: wallW, height: wallH, hp: 40, isBridge: false };
+            let collides = walls.some(w => rectCollision(newWall, w)) ||
+              trees.some(t => rectCollision(newWall, { x: t.x, y: t.y, width: t.size, height: t.size })) ||
+              chests.some(c => rectCollision(newWall, { x: c.x, y: c.y, width: c.size, height: c.size })) ||
+              rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height }) ||
+              enemies.some(other => other !== e && rectCollision(newWall, other)) ||
+              isWaterBlocked(newWall);
+
+            // Allow placing walls that act as bridges on water edges
+            let onWaterEdge = false;
+            if (!collides) {
+              onWaterEdge = waterZones.some(water => {
+                let touchingX = (newWall.x + newWall.width > water.x - 5 && newWall.x < water.x + water.width + 5);
+                let touchingY = (newWall.y + newWall.height > water.y - 5 && newWall.y < water.y + water.height + 5);
+                let insideWater = rectCollision(newWall, water);
+                return (touchingX && touchingY && !insideWater);
+              });
+              if (onWaterEdge) {
+                newWall.isBridge = true;
+                addBridgeForWall(newWall);
+              }
+            }
+
+            if (!collides || onWaterEdge) {
+              walls.push(newWall);
+            }
+          }
+        }
+
+        // Enemy contact damages player slightly
+        let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
+        if (distToPlayer < 40) {
+          applyDamageToPlayer(0.1);
+        }
+      });
+
+      // Player shooting logic
+      if (shooting && player.inventory.ammo > 0) {
+        if (player.canShoot) {
+          shootGun(player, player.inventory.gun, 'player');
+          player.canShoot = false;
+          player.lastShot = Date.now();
+          if (player.inventory.ammo !== Infinity) player.inventory.ammo--;
+        } else if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
+          player.canShoot = true;
+        }
+      } else if (!player.canShoot) {
+        if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
+          player.canShoot = true;
+        }
+      }
+
+      // Storm shrinking (same as original)
+      storm.timer++;
+      if (storm.timer > storm.warning) {
+        storm.x += storm.shrinkRate;
+        storm.y += storm.shrinkRate;
+        storm.width -= storm.shrinkRate * 2;
+        storm.height -= storm.shrinkRate * 2;
+        if (storm.width < 200) {
+          storm.width = 200;
+          storm.height = 150;
+        }
+      }
+
+      if (player.x < storm.x || player.x + player.width > storm.x + storm.width ||
+        player.y < storm.y || player.y + player.height > storm.y + storm.height) {
+        applyDamageToPlayer(1);
+      }
+    }
+
+    // Draw all elements on screen including water and bridges
     function draw() {
       ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
+      // Background green with purple storm overlay (same as original)
       ctx.fillStyle = 'rgba(128,0,128,0.6)';
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       ctx.clearRect(storm.x, storm.y, storm.width, storm.height);
 
+      // Draw water bodies
+      waterZones.forEach(water => {
+        ctx.fillStyle = 'rgba(30,144,255,0.7)'; // semi-transparent blue
+        ctx.fillRect(water.x, water.y, water.width, water.height);
+        // Draw water border in darker blue
+        ctx.strokeStyle = 'rgba(0,0,139,0.8)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(water.x, water.y, water.width, water.height);
+      });
+
+      // Draw bridges
+      bridges.forEach(bridge => {
+        ctx.fillStyle = '#8B4513'; // brown for wooden bridge
+        ctx.fillRect(bridge.x, bridge.y, bridge.width, bridge.height);
+      });
+
+      // Draw trees
       trees.forEach(t => {
         ctx.fillStyle = t.mined ? '#556b2f' : t.color;
         ctx.beginPath();
@@ -606,6 +847,7 @@ fortnite
         ctx.fill();
       });
 
+      // Draw chests
       chests.forEach(c => {
         ctx.fillStyle = c.opened ? 'gray' : '#654321';
         ctx.fillRect(c.x, c.y, c.size, c.size);
@@ -617,8 +859,9 @@ fortnite
         ctx.strokeRect(c.x, c.y, c.size, c.size);
       });
 
+      // Draw walls (include bridges coloring for bridge walls)
       walls.forEach(w => {
-        ctx.fillStyle = 'saddlebrown';
+        ctx.fillStyle = w.isBridge ? '#A0522D' : 'saddlebrown';
         ctx.fillRect(w.x, w.y, w.width, w.height);
         ctx.fillStyle = 'red';
         let hpRatio = w.hp / 40;
@@ -627,6 +870,7 @@ fortnite
         ctx.strokeRect(w.x, w.y - 5, w.width, 3);
       });
 
+      // Draw player rotated
       ctx.save();
       ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
       ctx.rotate(player.direction);
@@ -636,6 +880,7 @@ fortnite
       ctx.fillRect(0, -5, player.width / 2, 10);
       ctx.restore();
 
+      // Bullets
       bullets.forEach(b => {
         ctx.beginPath();
         ctx.fillStyle = b.explosive ? 'orange' : 'black';
@@ -643,6 +888,7 @@ fortnite
         ctx.fill();
       });
 
+      // Bombs
       bombs.forEach(bomb => {
         ctx.beginPath();
         ctx.fillStyle = 'black';
@@ -650,6 +896,7 @@ fortnite
         ctx.fill();
       });
 
+      // Enemies
       enemies.forEach(e => {
         ctx.fillStyle = e.color;
         ctx.fillRect(e.x, e.y, e.width, e.height);
@@ -660,6 +907,7 @@ fortnite
         ctx.fillText(e.inventory.gun.name.substring(0, 3), e.x, e.y - 10);
       });
 
+      // Explosions
       explosions.forEach(expl => {
         ctx.beginPath();
         ctx.strokeStyle = `rgba(255,165,0,${expl.alpha.toFixed(2)})`;
@@ -668,6 +916,7 @@ fortnite
         ctx.stroke();
       });
 
+      // Health and info UI bars and text (same as original)
       ctx.fillStyle = 'black';
       ctx.fillRect(10, 10, 104, 24);
       ctx.fillStyle = 'red';
@@ -689,6 +938,7 @@ fortnite
       ctx.font = '14px Arial';
       ctx.fillText('Press E near tree to mine walls (3 per tree)', 10, GAME_HEIGHT - 35);
       ctx.fillText('Space: Build wall, R: Shoot, F: Throw bomb, Q: Use chug jug', 10, GAME_HEIGHT - 15);
+      ctx.fillText('Avoid water unless on bridges or walls bridging water!', 10, GAME_HEIGHT - 50);
     }
 
     function drawGameOver() {
@@ -713,15 +963,6 @@ fortnite
       ctx.fillText('You eliminated all enemies.', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 40);
     }
 
-    let mousePos = null;
-    canvas.addEventListener('mousemove', e => {
-      const rect = canvas.getBoundingClientRect();
-      mousePos = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      };
-    });
-
     function gameLoop() {
       if (player.health > 0) {
         update();
@@ -738,6 +979,7 @@ fortnite
       }
     }
 
+    // Draw minimap with water and bridges
     function drawMinimap() {
       mapCtx.clearRect(0, 0, minimap.width, minimap.height);
       mapCtx.fillStyle = '#228B22';
@@ -746,14 +988,29 @@ fortnite
       const scaleX = minimap.width / GAME_WIDTH;
       const scaleY = minimap.height / GAME_HEIGHT;
 
+      // Storm
       mapCtx.fillStyle = 'rgba(128, 0, 128, 0.3)';
       mapCtx.fillRect(storm.x * scaleX, storm.y * scaleY, storm.width * scaleX, storm.height * scaleY);
 
+      // Water zones on minimap
+      waterZones.forEach(w => {
+        mapCtx.fillStyle = 'rgba(30,144,255,0.7)';
+        mapCtx.fillRect(w.x * scaleX, w.y * scaleY, w.width * scaleX, w.height * scaleY);
+      });
+
+      // Bridges
+      bridges.forEach(br => {
+        mapCtx.fillStyle = '#8B4513';
+        mapCtx.fillRect(br.x * scaleX, br.y * scaleY, br.width * scaleX, br.height * scaleY);
+      });
+
+      // Trees
       trees.forEach(t => {
         mapCtx.fillStyle = t.mined ? '#556b2f' : 'darkgreen';
         mapCtx.fillRect(t.x * scaleX, t.y * scaleY, 3, 3);
       });
 
+      // Chests
       chests.forEach(c => {
         let col;
         switch (c.gun.rarity) {
@@ -766,14 +1023,17 @@ fortnite
         mapCtx.fillRect(c.x * scaleX, c.y * scaleY, 3, 3);
       });
 
+      // Walls
       walls.forEach(w => {
-        mapCtx.fillStyle = 'saddlebrown';
+        mapCtx.fillStyle = w.isBridge ? '#A0522D' : 'saddlebrown';
         mapCtx.fillRect(w.x * scaleX, w.y * scaleY, w.width * scaleX, w.height * scaleY);
       });
 
+      // Player
       mapCtx.fillStyle = 'blue';
       mapCtx.fillRect(player.x * scaleX, player.y * scaleY, 4, 4);
 
+      // Enemies
       enemies.forEach(e => {
         mapCtx.fillStyle = 'red';
         mapCtx.fillRect(e.x * scaleX, e.y * scaleY, 4, 4);
@@ -785,4 +1045,3 @@ fortnite
 </body>
 
 </html>
-
