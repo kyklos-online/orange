@@ -1,4 +1,4 @@
-\<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -65,12 +65,13 @@
       };
     });
 
-    // Guns config (same as original)
+    // Guns config with added Shot-47 rare gun
     const GUNS = {
       PISTOL: { name: "Pistol", fireRate: 300, bulletsPerShot: 1, spread: 0, damage: 15, bulletSpeed: 7, rarity: 'common' },
       AK47: { name: "AK-47", fireRate: 100, bulletsPerShot: 1, spread: 0, damage: 12, bulletSpeed: 9, rarity: 'rare', automatic: true },
       SHOTGUN: { name: "Shotgun", fireRate: 1000, bulletsPerShot: 3, spread: 0.25, damage: 8, bulletSpeed: 7, rarity: 'rare' },
-      RPG: { name: "RPG", fireRate: 1500, bulletsPerShot: 1, spread: 0, damage: 30, bulletSpeed: 5, rarity: 'legendary', explosive: true, explosionRadius: 50 }
+      RPG: { name: "RPG", fireRate: 1500, bulletsPerShot: 1, spread: 0, damage: 30, bulletSpeed: 5, rarity: 'legendary', explosive: true, explosionRadius: 50 },
+      SHOT47: { name: "Shot-47", fireRate: 150, bulletsPerShot: 3, spread: 0.15, damage: 10, bulletSpeed: 8, rarity: 'rare', automatic: true } // new combined gun
     };
 
     // Chug jugs config (same as original)
@@ -80,12 +81,13 @@
       LARGE: { name: 'Large', healHealth: 100, healShield: 50 }
     };
 
-    // Weighted random gun selection helper (same as original)
+    // Weighted random gun selection helper updated with Shot-47
     function getRandomGun() {
       let roll = Math.random();
-      if (roll < 0.67) return GUNS.PISTOL;
-      else if (roll < 0.85) return GUNS.AK47;
-      else if (roll < 0.95) return GUNS.SHOTGUN;
+      if (roll < 0.6) return GUNS.PISTOL;
+      else if (roll < 0.8) return GUNS.AK47;
+      else if (roll < 0.93) return GUNS.SHOTGUN;
+      else if (roll < 0.99) return GUNS.SHOT47;
       else return GUNS.RPG;
     }
 
@@ -162,11 +164,9 @@
     const bombs = [];
 
     // Water bodies: array of water zones (rivers and lakes)
-    // Each water zone has x, y, width, height, type (river or lake)
     const waterZones = [];
 
     // Bridges - array paralleling water zones with bridge rectangles
-    // Bridge rectangles allow passage over water without damage
     const bridges = [];
 
     // Random chance for shooting
@@ -218,18 +218,16 @@
 
     // Is point inside any water zone except on a bridge? Used to apply damage
     function isInWaterNoBridge(x, y, width = 1, height = 1) {
-      // Check if inside a bridge first (safe)
       for (const br of bridges) {
         if (rectCollision({ x, y, width, height }, br)) return false;
       }
-      // Else check if inside water zone
       for (const w of waterZones) {
         if (rectCollision({ x, y, width, height }, w)) return true;
       }
       return false;
     }
 
-    // AI water avoidance check: checks if place is inside water but not on bridge
+    // AI water avoidance check
     function isWaterBlocked(rect) {
       for (const br of bridges) {
         if (rectCollision(rect, br)) return false;
@@ -325,11 +323,9 @@
 
         // Check if placing wall on water edge - if so treat as a bridge (safe)
         const onWaterEdge = waterZones.some(water => {
-          // Check if wall rectangle is touching water border (within 5 pixels)
           let touchingX = (wallRect.x + wallRect.width > water.x - 5 && wallRect.x < water.x + water.width + 5);
           let touchingY = (wallRect.y + wallRect.height > water.y - 5 && wallRect.y < water.y + water.height + 5);
           let insideWater = rectCollision(wallRect, water);
-          // It's considered "on water edge" if it is at the border (touching but not fully inside water)
           return (touchingX && touchingY && !insideWater);
         });
 
@@ -337,7 +333,6 @@
           newWall.isBridge = onWaterEdge;
           walls.push(newWall);
 
-          // If wall is bridge and touching water, add or extend bridges on that segment
           if (onWaterEdge) {
             addBridgeForWall(newWall);
           }
@@ -349,13 +344,10 @@
 
     // Add or update bridges array based on wall placement on water edge
     function addBridgeForWall(wall) {
-      // Check water zone(s) intersecting with this wall
       waterZones.forEach(water => {
-        // If wall is close to water zone border (within 10 pixels)
         let nearX = (wall.x + wall.width > water.x - 10 && wall.x < water.x + water.width + 10);
         let nearY = (wall.y + wall.height > water.y - 10 && wall.y < water.y + water.height + 10);
         if (nearX && nearY) {
-          // Add a bridge rectangle where this wall is
           let bridgeRect = {
             x: wall.x,
             y: wall.y,
@@ -469,17 +461,14 @@
     // GAME WATER GENERATION BEFORE GAME START
     function generateWaterZones() {
       if (Math.random() < 0.4) {
-        // 40% chance to have no water - just return without generating water/bridges
         return;
       }
-      // Generate 2 to 4 water zones (rivers and lakes)
       const zoneCount = randomInt(2, 5);
 
       for (let i = 0; i < zoneCount; i++) {
-        const isRiver = Math.random() < 0.6; // 60% chance river, else lake
+        const isRiver = Math.random() < 0.6;
 
         if (isRiver) {
-          // Generate river - long thin rectangle, horizontal or vertical
           const horizontal = Math.random() < 0.5;
           if (horizontal) {
             const height = randomInt(40, 60);
@@ -493,7 +482,6 @@
               horizontal: true
             });
 
-            // Add some bridges crossing horizontally on river
             let bridgeCount = randomInt(1, 3);
             for (let b = 0; b < bridgeCount; b++) {
               const brWidth = 50;
@@ -514,7 +502,6 @@
               horizontal: false
             });
 
-            // Vertical bridges
             let bridgeCount = randomInt(1, 3);
             for (let b = 0; b < bridgeCount; b++) {
               const brWidth = width;
@@ -525,7 +512,6 @@
             }
           }
         } else {
-          // Generate lake - roughly square or roundish
           let size = randomInt(60, MAX_WATER_DEPTH);
           const x = randomInt(50, GAME_WIDTH - size - 50);
           const y = randomInt(50, GAME_HEIGHT - size - 50);
@@ -537,23 +523,22 @@
             type: 'lake'
           });
 
-          // Bridge(s) for lake - small bridges on different edges randomly
           let bridgesCount = randomInt(0, 2);
           for (let b = 0; b < bridgesCount; b++) {
             let side = Math.floor(Math.random() * 4);
             let brSize = 40;
             let brRect = {};
             switch (side) {
-              case 0: // top
+              case 0:
                 brRect = { x: x + randomInt(0, size - brSize), y: y, width: brSize, height: 10 };
                 break;
-              case 1: // bottom
+              case 1:
                 brRect = { x: x + randomInt(0, size - brSize), y: y + size - 10, width: brSize, height: 10 };
                 break;
-              case 2: // left
+              case 2:
                 brRect = { x: x, y: y + randomInt(0, size - brSize), width: 10, height: brSize };
                 break;
-              case 3: // right
+              case 3:
                 brRect = { x: x + size - 10, y: y + randomInt(0, size - brSize), width: 10, height: brSize };
                 break;
             }
@@ -575,13 +560,11 @@
           return { x, y };
         }
       }
-      // If no safe spot found, fallback (possible to spawn in water)
       return { x: randomInt(20, GAME_WIDTH - 40), y: randomInt(20, GAME_HEIGHT - 40) };
     }
 
-    // Calculate if line intersects any water zone (used for AI pathfinding)
+    // Calculate if line intersects any water zone
     function lineIntersectsWater(x1, y1, x2, y2) {
-      // Approximate line with small steps checking intersection with water
       const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 5);
       for (let i = 0; i <= steps; i++) {
         let lerpX = x1 + (x2 - x1) * (i / steps);
@@ -595,19 +578,15 @@
       return false;
     }
 
-    // Find closest bridge on water line between two points (for AI)
+    // Find closest bridge on water line between two points
     function findNearestBridgeOnPath(sx, sy, tx, ty) {
-      // Find bridges that intersect the line between start and target
-      // Return the center of nearest bridge to start
       let candidateBridges = [];
       for (const br of bridges) {
-        // Check if bridge rectangle intersects line segment sx,sy to tx,ty
         if (rectLineIntersection(br, sx, sy, tx, ty)) {
           candidateBridges.push(br);
         }
       }
       if (candidateBridges.length === 0) return null;
-      // Return bridge center closest to start (sx, sy)
       candidateBridges.sort((a, b) => {
         let aCx = a.x + a.width / 2, aCy = a.y + a.height / 2;
         let bCx = b.x + b.width / 2, bCy = b.y + b.height / 2;
@@ -617,9 +596,8 @@
       return { x: br.x + br.width / 2, y: br.y + br.height / 2 };
     }
 
-    // Helper function: check if rectangle intersects line segment
+    // Check if rectangle intersects line segment
     function rectLineIntersection(rect, x1, y1, x2, y2) {
-      // Check line intersects each rectangle side
       function lineLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
         const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
         if (denom === 0) return false;
@@ -627,25 +605,19 @@
         const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
         return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
       }
-      // rectangle sides
       let left = rect.x, right = rect.x + rect.width, top = rect.y, bottom = rect.y + rect.height;
 
-      // top
       if (lineLineIntersection(x1, y1, x2, y2, left, top, right, top)) return true;
-      // bottom
       if (lineLineIntersection(x1, y1, x2, y2, left, bottom, right, bottom)) return true;
-      // left
       if (lineLineIntersection(x1, y1, x2, y2, left, top, left, bottom)) return true;
-      // right
       if (lineLineIntersection(x1, y1, x2, y2, right, top, right, bottom)) return true;
-      // Also check if line starts or ends inside rectangle
       if (x1 >= left && x1 <= right && y1 >= top && y1 <= bottom) return true;
       if (x2 >= left && x2 <= right && y2 >= top && y2 <= bottom) return true;
 
       return false;
     }
 
-    // Generate AI enemies - ensure no spawn in water, iterates 5 times
+    // Generate AI enemies
     for (let i = 0; i < 5; i++) {
       const spawn = findSafeSpawn();
       enemies.push({
@@ -663,17 +635,16 @@
         inventory: {
           walls: Infinity,
           ammo: Infinity,
-          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
+          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG, GUNS.SHOT47][randomInt(0, 5)] // include Shot-47
         },
         moveTimer: 0,
         targetPos: null,
-        pathState: 'direct' // 'direct' or 'bridge'
+        pathState: 'direct'
       });
     }
 
     // Player & AI update
     function update() {
-      // Player movement
       let dx = 0, dy = 0;
       if (keys['w'] || keys['arrowup']) dy -= 1;
       if (keys['s'] || keys['arrowdown']) dy += 1;
@@ -683,11 +654,9 @@
         dx *= Math.sqrt(0.5);
         dy *= Math.sqrt(0.5);
       }
-      // Try move player with collision on map bounds and attempt water penalty
       let newPx = player.x + dx * player.speed;
       let newPy = player.y + dy * player.speed;
 
-      // Clamp within game area
       newPx = Math.min(Math.max(newPx, 0), GAME_WIDTH - player.width);
       newPy = Math.min(Math.max(newPy, 0), GAME_HEIGHT - player.height);
 
@@ -714,12 +683,10 @@
       }
       if (player.miningCooldown > 0) player.miningCooldown--;
 
-      // Apply water damage if player touching water (not on bridge)
       if (isInWaterNoBridge(player.x, player.y, player.width, player.height)) {
         applyDamageToPlayer(WATER_DAMAGE);
       }
 
-      // Bullets updating
       for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.x += b.vx;
@@ -753,7 +720,6 @@
         }
       }
 
-      // Bombs update (same as original)
       for (let i = bombs.length - 1; i >= 0; i--) {
         let bomb = bombs[i];
         bomb.x += bomb.vx;
@@ -768,7 +734,6 @@
         }
       }
 
-      // Explosions update (same as original)
       for (let i = explosions.length - 1; i >= 0; i--) {
         let e = explosions[i];
         e.alpha -= 0.03;
@@ -776,38 +741,28 @@
         if (e.alpha <= 0) explosions.splice(i, 1);
       }
 
-      // Enemies update (add water avoidance with bridge preference)
       enemies.forEach(e => {
         e.moveTimer = (e.moveTimer || 0) + 1;
 
-        // Enemy AI Pathfinding logic to go over bridges if river block direct path
-
-        // Determine target position for enemy (always player here)
         const tx = player.x;
         const ty = player.y;
 
-        // If no targetPos or reached it, set targetPos to player or bridge
         if (!e.targetPos || Math.hypot(e.x - e.targetPos.x, e.y - e.targetPos.y) < 5) {
-          // Check if direct path to player crosses water
           if (lineIntersectsWater(e.x + e.width / 2, e.y + e.height / 2, tx + player.width / 2, ty + player.height / 2)) {
-            // Find nearest bridge on path to player
             const bridgePos = findNearestBridgeOnPath(e.x + e.width / 2, e.y + e.height / 2, tx + player.width / 2, ty + player.height / 2);
             if (bridgePos) {
               e.targetPos = bridgePos;
               e.pathState = 'bridge';
             } else {
-              // No bridge, try direct (will be blocked if water)
               e.targetPos = { x: tx, y: ty };
               e.pathState = 'direct';
             }
           } else {
-            // Direct path clear
             e.targetPos = { x: tx, y: ty };
             e.pathState = 'direct';
           }
         }
 
-        // Move toward targetPos
         if (e.targetPos) {
           let dir = Math.atan2(e.targetPos.y - e.y, e.targetPos.x - e.x);
 
@@ -825,13 +780,11 @@
             e.y = ny;
             e.direction = dir;
           } else {
-            // If blocked, and pathState is bridge, and close to bridge, switch to direct path to player
             if (e.pathState === 'bridge') {
               if (Math.hypot(e.x - e.targetPos.x, e.y - e.targetPos.y) < 10) {
                 e.targetPos = { x: player.x, y: player.y };
                 e.pathState = 'direct';
               } else {
-                // Try alternate directions by slightly changing angle to find non-blocked path to bridge
                 let foundPath = false;
                 for (let angleAdjust = -0.5; angleAdjust <= 0.5; angleAdjust += 0.1) {
                   let testDir = dir + angleAdjust;
@@ -860,7 +813,6 @@
           }
         }
 
-        // Shooting logic
         if (e.canShoot && e.inventory.ammo > 0) {
           if (Math.random() < 0.007) {
             shootGun(e, e.inventory.gun, 'enemy');
@@ -873,7 +825,6 @@
           }
         }
 
-        // Building walls randomly with same logic (allow bridges)
         if (e.inventory.walls > 0 && Math.random() < 0.002) {
           let wallW = 30, wallH = 10;
           let wx = e.x + e.width / 2 + Math.cos(e.direction) * 30 - wallW / 2;
@@ -890,7 +841,6 @@
               enemies.some(other => other !== e && rectCollision(newWall, other)) ||
               isWaterBlocked(newWall);
 
-            // Allow placing walls that act as bridges on water edges
             let onWaterEdge = false;
             if (!collides) {
               onWaterEdge = waterZones.some(water => {
@@ -911,14 +861,12 @@
           }
         }
 
-        // Enemy contact damages player slightly
         let distToPlayer = Math.hypot(e.x - player.x, e.y - player.y);
         if (distToPlayer < 40) {
           applyDamageToPlayer(0.1);
         }
       });
 
-      // Player shooting logic
       if (shooting && player.inventory.ammo > 0) {
         if (player.canShoot) {
           shootGun(player, player.inventory.gun, 'player');
@@ -934,7 +882,6 @@
         }
       }
 
-      // Storm shrinking (same as original)
       storm.timer++;
       if (storm.timer > storm.warning) {
         storm.x += storm.shrinkRate;
@@ -953,32 +900,27 @@
       }
     }
 
-    // Draw all elements on screen including water and bridges
+    // Draw all elements
     function draw() {
       ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-      // Background green with purple storm overlay (same as original)
       ctx.fillStyle = 'rgba(128,0,128,0.6)';
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       ctx.clearRect(storm.x, storm.y, storm.width, storm.height);
 
-      // Draw water bodies
       waterZones.forEach(water => {
-        ctx.fillStyle = 'rgba(30,144,255,0.7)'; // semi-transparent blue
+        ctx.fillStyle = 'rgba(30,144,255,0.7)';
         ctx.fillRect(water.x, water.y, water.width, water.height);
-        // Draw water border in darker blue
         ctx.strokeStyle = 'rgba(0,0,139,0.8)';
         ctx.lineWidth = 2;
         ctx.strokeRect(water.x, water.y, water.width, water.height);
       });
 
-      // Draw bridges
       bridges.forEach(bridge => {
-        ctx.fillStyle = '#8B4513'; // brown for wooden bridge
+        ctx.fillStyle = '#8B4513';
         ctx.fillRect(bridge.x, bridge.y, bridge.width, bridge.height);
       });
 
-      // Draw trees
       trees.forEach(t => {
         ctx.fillStyle = t.mined ? '#556b2f' : t.color;
         ctx.beginPath();
@@ -989,7 +931,6 @@
         ctx.fill();
       });
 
-      // Draw chests
       chests.forEach(c => {
         ctx.fillStyle = c.opened ? 'gray' : '#654321';
         ctx.fillRect(c.x, c.y, c.size, c.size);
@@ -1001,7 +942,6 @@
         ctx.strokeRect(c.x, c.y, c.size, c.size);
       });
 
-      // Draw walls (include bridges coloring for bridge walls)
       walls.forEach(w => {
         ctx.fillStyle = w.isBridge ? '#A0522D' : 'saddlebrown';
         ctx.fillRect(w.x, w.y, w.width, w.height);
@@ -1012,7 +952,6 @@
         ctx.strokeRect(w.x, w.y - 5, w.width, 3);
       });
 
-      // Draw player rotated
       ctx.save();
       ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
       ctx.rotate(player.direction);
@@ -1022,7 +961,6 @@
       ctx.fillRect(0, -5, player.width / 2, 10);
       ctx.restore();
 
-      // Bullets
       bullets.forEach(b => {
         ctx.beginPath();
         ctx.fillStyle = b.explosive ? 'orange' : 'black';
@@ -1030,7 +968,6 @@
         ctx.fill();
       });
 
-      // Bombs
       bombs.forEach(bomb => {
         ctx.beginPath();
         ctx.fillStyle = 'black';
@@ -1038,7 +975,6 @@
         ctx.fill();
       });
 
-      // Enemies
       enemies.forEach(e => {
         ctx.fillStyle = e.color;
         ctx.fillRect(e.x, e.y, e.width, e.height);
@@ -1049,7 +985,6 @@
         ctx.fillText(e.inventory.gun.name.substring(0, 3), e.x, e.y - 10);
       });
 
-      // Explosions
       explosions.forEach(expl => {
         ctx.beginPath();
         ctx.strokeStyle = `rgba(255,165,0,${expl.alpha.toFixed(2)})`;
@@ -1058,7 +993,6 @@
         ctx.stroke();
       });
 
-      // Health and info UI bars and text (same as original)
       ctx.fillStyle = 'black';
       ctx.fillRect(10, 10, 104, 24);
       ctx.fillStyle = 'red';
@@ -1121,7 +1055,6 @@
       }
     }
 
-    // Draw minimap with water and bridges, chests all same color (#FFFFFF)
     function drawMinimap() {
       mapCtx.clearRect(0, 0, minimap.width, minimap.height);
       mapCtx.fillStyle = '#228B22';
@@ -1130,45 +1063,37 @@
       const scaleX = minimap.width / GAME_WIDTH;
       const scaleY = minimap.height / GAME_HEIGHT;
 
-      // Storm
       mapCtx.fillStyle = 'rgba(128, 0, 128, 0.3)';
       mapCtx.fillRect(storm.x * scaleX, storm.y * scaleY, storm.width * scaleX, storm.height * scaleY);
 
-      // Water zones on minimap
       waterZones.forEach(w => {
         mapCtx.fillStyle = 'rgba(30,144,255,0.7)';
         mapCtx.fillRect(w.x * scaleX, w.y * scaleY, w.width * scaleX, w.height * scaleY);
       });
 
-      // Bridges
       bridges.forEach(br => {
         mapCtx.fillStyle = '#8B4513';
         mapCtx.fillRect(br.x * scaleX, br.y * scaleY, br.width * scaleX, br.height * scaleY);
       });
 
-      // Trees
       trees.forEach(t => {
         mapCtx.fillStyle = t.mined ? '#556b2f' : 'darkgreen';
         mapCtx.fillRect(t.x * scaleX, t.y * scaleY, 3, 3);
       });
 
-      // Chests all same color on minimap
       mapCtx.fillStyle = '#FFFFFF';
       chests.forEach(c => {
         mapCtx.fillRect(c.x * scaleX, c.y * scaleY, 3, 3);
       });
 
-      // Walls
       walls.forEach(w => {
         mapCtx.fillStyle = w.isBridge ? '#A0522D' : 'saddlebrown';
         mapCtx.fillRect(w.x * scaleX, w.y * scaleY, w.width * scaleX, w.height * scaleY);
       });
 
-      // Player
       mapCtx.fillStyle = 'blue';
       mapCtx.fillRect(player.x * scaleX, player.y * scaleY, 4, 4);
 
-      // Enemies
       enemies.forEach(e => {
         mapCtx.fillStyle = 'red';
         mapCtx.fillRect(e.x * scaleX, e.y * scaleY, 4, 4);
