@@ -362,8 +362,6 @@
             width: wall.width,
             height: wall.height
           };
-          // Avoid duplicate bridges - check close rectangles and merge
-          // We'll just add it simply (merging complex) since walls are small
           bridges.push(bridgeRect);
         }
       });
@@ -468,34 +466,12 @@
       });
     }
 
-    // Generate AI enemies - same as original
-    for (let i = 0; i < 5; i++) {
-      enemies.push({
-        x: randomInt(20, GAME_WIDTH - 40),
-        y: randomInt(20, GAME_HEIGHT - 40),
-        width: 25,
-        height: 25,
-        color: 'red',
-        speed: 1,
-        direction: Math.random() * 2 * Math.PI,
-        health: 40,
-        canShoot: true,
-        shootCooldown: 2000 + Math.random() * 2000,
-        lastShot: 0,
-        inventory: {
-          walls: Infinity,
-          ammo: Infinity,
-          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
-        },
-        moveTimer: 0,
-      });
-    }
-
-    // Shoot logic controlled with R key
-    // ...
-
     // GAME WATER GENERATION BEFORE GAME START
     function generateWaterZones() {
+      if (Math.random() < 0.4) {
+        // 40% chance to have no water - just return without generating water/bridges
+        return;
+      }
       // Generate 2 to 4 water zones (rivers and lakes)
       const zoneCount = randomInt(2, 5);
 
@@ -588,6 +564,44 @@
     }
 
     generateWaterZones();
+
+    // Helper to find a spawn location not in water for enemies
+    function findSafeSpawn() {
+      for (let i = 0; i < 100; i++) {
+        let x = randomInt(20, GAME_WIDTH - 40);
+        let y = randomInt(20, GAME_HEIGHT - 40);
+        let rect = { x: x, y: y, width: 25, height: 25 };
+        if (!isWaterBlocked(rect)) {
+          return { x, y };
+        }
+      }
+      // If no safe spot found, fallback (possible to spawn in water)
+      return { x: randomInt(20, GAME_WIDTH - 40), y: randomInt(20, GAME_HEIGHT - 40) };
+    }
+
+    // Generate AI enemies - ensure no spawn in water, iterates 5 times
+    for (let i = 0; i < 5; i++) {
+      const spawn = findSafeSpawn();
+      enemies.push({
+        x: spawn.x,
+        y: spawn.y,
+        width: 25,
+        height: 25,
+        color: 'red',
+        speed: 1,
+        direction: Math.random() * 2 * Math.PI,
+        health: 40,
+        canShoot: true,
+        shootCooldown: 2000 + Math.random() * 2000,
+        lastShot: 0,
+        inventory: {
+          walls: Infinity,
+          ammo: Infinity,
+          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
+        },
+        moveTimer: 0,
+      });
+    }
 
     // Player & AI update
     function update() {
