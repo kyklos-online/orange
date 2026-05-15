@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+\<!DOCTYPE html>
 <html>
 
 <head>
@@ -579,6 +579,72 @@
       return { x: randomInt(20, GAME_WIDTH - 40), y: randomInt(20, GAME_HEIGHT - 40) };
     }
 
+    // Calculate if line intersects any water zone (used for AI pathfinding)
+    function lineIntersectsWater(x1, y1, x2, y2) {
+      // Approximate line with small steps checking intersection with water
+      const steps = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 5);
+      for (let i = 0; i <= steps; i++) {
+        let lerpX = x1 + (x2 - x1) * (i / steps);
+        let lerpY = y1 + (y2 - y1) * (i / steps);
+        for (const w of waterZones) {
+          if (lerpX >= w.x && lerpX <= w.x + w.width && lerpY >= w.y && lerpY <= w.y + w.height) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // Find closest bridge on water line between two points (for AI)
+    function findNearestBridgeOnPath(sx, sy, tx, ty) {
+      // Find bridges that intersect the line between start and target
+      // Return the center of nearest bridge to start
+      let candidateBridges = [];
+      for (const br of bridges) {
+        // Check if bridge rectangle intersects line segment sx,sy to tx,ty
+        if (rectLineIntersection(br, sx, sy, tx, ty)) {
+          candidateBridges.push(br);
+        }
+      }
+      if (candidateBridges.length === 0) return null;
+      // Return bridge center closest to start (sx, sy)
+      candidateBridges.sort((a, b) => {
+        let aCx = a.x + a.width / 2, aCy = a.y + a.height / 2;
+        let bCx = b.x + b.width / 2, bCy = b.y + b.height / 2;
+        return Math.hypot(aCx - sx, aCy - sy) - Math.hypot(bCx - sx, bCy - sy);
+      });
+      const br = candidateBridges[0];
+      return { x: br.x + br.width / 2, y: br.y + br.height / 2 };
+    }
+
+    // Helper function: check if rectangle intersects line segment
+    function rectLineIntersection(rect, x1, y1, x2, y2) {
+      // Check line intersects each rectangle side
+      function lineLineIntersection(x1, y1, x2, y2, x3, y3, x4, y4) {
+        const denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1);
+        if (denom === 0) return false;
+        const ua = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / denom;
+        const ub = ((x2 - x1) * (y1 - y3) - (y2 - y1) * (x1 - x3)) / denom;
+        return ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1;
+      }
+      // rectangle sides
+      let left = rect.x, right = rect.x + rect.width, top = rect.y, bottom = rect.y + rect.height;
+
+      // top
+      if (lineLineIntersection(x1, y1, x2, y2, left, top, right, top)) return true;
+      // bottom
+      if (lineLineIntersection(x1, y1, x2, y2, left, bottom, right, bottom)) return true;
+      // left
+      if (lineLineIntersection(x1, y1, x2, y2, left, top, left, bottom)) return true;
+      // right
+      if (lineLineIntersection(x1, y1, x2, y2, right, top, right, bottom)) return true;
+      // Also check if line starts or ends inside rectangle
+      if (x1 >= left && x1 <= right && y1 >= top && y1 <= bottom) return true;
+      if (x2 >= left && x2 <= right && y2 >= top && y2 <= bottom) return true;
+
+      return false;
+    }
+
     // Generate AI enemies - ensure no spawn in water, iterates 5 times
     for (let i = 0; i < 5; i++) {
       const spawn = findSafeSpawn();
@@ -600,6 +666,8 @@
           gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG][randomInt(0, 4)]
         },
         moveTimer: 0,
+        targetPos: null,
+        pathState: 'direct' // 'direct' or 'bridge'
       });
     }
 
@@ -708,32 +776,91 @@
         if (e.alpha <= 0) explosions.splice(i, 1);
       }
 
-      // Enemies update (add water avoidance)
+      // Enemies update (add water avoidance with bridge preference)
       enemies.forEach(e => {
         e.moveTimer = (e.moveTimer || 0) + 1;
-        if (e.moveTimer > 120) {
-          e.direction = Math.random() * 2 * Math.PI;
-          e.moveTimer = 0;
+
+        // Enemy AI Pathfinding logic to go over bridges if river block direct path
+
+        // Determine target position for enemy (always player here)
+        const tx = player.x;
+        const ty = player.y;
+
+        // If no targetPos or reached it, set targetPos to player or bridge
+        if (!e.targetPos || Math.hypot(e.x - e.targetPos.x, e.y - e.targetPos.y) < 5) {
+          // Check if direct path to player crosses water
+          if (lineIntersectsWater(e.x + e.width / 2, e.y + e.height / 2, tx + player.width / 2, ty + player.height / 2)) {
+            // Find nearest bridge on path to player
+            const bridgePos = findNearestBridgeOnPath(e.x + e.width / 2, e.y + e.height / 2, tx + player.width / 2, ty + player.height / 2);
+            if (bridgePos) {
+              e.targetPos = bridgePos;
+              e.pathState = 'bridge';
+            } else {
+              // No bridge, try direct (will be blocked if water)
+              e.targetPos = { x: tx, y: ty };
+              e.pathState = 'direct';
+            }
+          } else {
+            // Direct path clear
+            e.targetPos = { x: tx, y: ty };
+            e.pathState = 'direct';
+          }
         }
 
-        let nx = e.x + Math.cos(e.direction) * e.speed;
-        let ny = e.y + Math.sin(e.direction) * e.speed;
+        // Move toward targetPos
+        if (e.targetPos) {
+          let dir = Math.atan2(e.targetPos.y - e.y, e.targetPos.x - e.x);
 
-        let enemyRect = { x: nx, y: ny, width: e.width, height: e.height };
-        const inStorm = nx >= storm.x && nx + e.width <= storm.x + storm.width &&
-          ny >= storm.y && ny + e.height <= storm.y + storm.height;
-        const hitsWall = walls.some(w => rectCollision(enemyRect, w));
-        const inWater = isWaterBlocked(enemyRect);
+          let nx = e.x + Math.cos(dir) * e.speed;
+          let ny = e.y + Math.sin(dir) * e.speed;
 
-        if (inStorm && !hitsWall && !inWater) {
-          e.x = nx;
-          e.y = ny;
-        } else {
-          e.direction = Math.random() * 2 * Math.PI;
+          let enemyRect = { x: nx, y: ny, width: e.width, height: e.height };
+          const inStorm = nx >= storm.x && nx + e.width <= storm.x + storm.width &&
+            ny >= storm.y && ny + e.height <= storm.y + storm.height;
+          const hitsWall = walls.some(w => rectCollision(enemyRect, w));
+          const inWater = isWaterBlocked(enemyRect);
+
+          if (inStorm && !hitsWall && !inWater) {
+            e.x = nx;
+            e.y = ny;
+            e.direction = dir;
+          } else {
+            // If blocked, and pathState is bridge, and close to bridge, switch to direct path to player
+            if (e.pathState === 'bridge') {
+              if (Math.hypot(e.x - e.targetPos.x, e.y - e.targetPos.y) < 10) {
+                e.targetPos = { x: player.x, y: player.y };
+                e.pathState = 'direct';
+              } else {
+                // Try alternate directions by slightly changing angle to find non-blocked path to bridge
+                let foundPath = false;
+                for (let angleAdjust = -0.5; angleAdjust <= 0.5; angleAdjust += 0.1) {
+                  let testDir = dir + angleAdjust;
+                  let testX = e.x + Math.cos(testDir) * e.speed;
+                  let testY = e.y + Math.sin(testDir) * e.speed;
+                  let testRect = { x: testX, y: testY, width: e.width, height: e.height };
+                  const inStorm = testX >= storm.x && testX + e.width <= storm.x + storm.width &&
+                    testY >= storm.y && testY + e.height <= storm.y + storm.height;
+                  const hitsWall = walls.some(w => rectCollision(testRect, w));
+                  const inWater = isWaterBlocked(testRect);
+                  if (inStorm && !hitsWall && !inWater) {
+                    e.x = testX;
+                    e.y = testY;
+                    e.direction = testDir;
+                    foundPath = true;
+                    break;
+                  }
+                }
+                if (!foundPath) {
+                  e.direction = Math.random() * 2 * Math.PI;
+                }
+              }
+            } else {
+              e.direction = Math.random() * 2 * Math.PI;
+            }
+          }
         }
 
-        e.direction = Math.atan2(player.y - e.y, player.x - e.x);
-
+        // Shooting logic
         if (e.canShoot && e.inventory.ammo > 0) {
           if (Math.random() < 0.007) {
             shootGun(e, e.inventory.gun, 'enemy');
@@ -746,6 +873,7 @@
           }
         }
 
+        // Building walls randomly with same logic (allow bridges)
         if (e.inventory.walls > 0 && Math.random() < 0.002) {
           let wallW = 30, wallH = 10;
           let wx = e.x + e.width / 2 + Math.cos(e.direction) * 30 - wallW / 2;
@@ -993,7 +1121,7 @@
       }
     }
 
-    // Draw minimap with water and bridges
+    // Draw minimap with water and bridges, chests all same color (#FFFFFF)
     function drawMinimap() {
       mapCtx.clearRect(0, 0, minimap.width, minimap.height);
       mapCtx.fillStyle = '#228B22';
@@ -1024,16 +1152,9 @@
         mapCtx.fillRect(t.x * scaleX, t.y * scaleY, 3, 3);
       });
 
-      // Chests
+      // Chests all same color on minimap
+      mapCtx.fillStyle = '#FFFFFF';
       chests.forEach(c => {
-        let col;
-        switch (c.gun.rarity) {
-          case 'common': col = '#cd7f32'; break;
-          case 'rare': col = '#3377ff'; break;
-          case 'legendary': col = '#ffb700'; break;
-          default: col = c.color;
-        }
-        mapCtx.fillStyle = c.opened ? 'gray' : col;
         mapCtx.fillRect(c.x * scaleX, c.y * scaleY, 3, 3);
       });
 
