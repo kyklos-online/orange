@@ -2,7 +2,7 @@
 <html>
 
 <head>
-  <title>Mini Fortnite Top-Down with Water</title>
+  <title>Mini Fortnite Top-Down with Water and Cannon Gun</title>
   <style>
     body {
       margin: 0;
@@ -65,33 +65,35 @@
       };
     });
 
-    // Guns config with added Shot-47 rare gun
+    // Guns config including Shot-47 and new Cannon
     const GUNS = {
       PISTOL: { name: "Pistol", fireRate: 300, bulletsPerShot: 1, spread: 0, damage: 15, bulletSpeed: 7, rarity: 'common' },
       AK47: { name: "AK-47", fireRate: 100, bulletsPerShot: 1, spread: 0, damage: 12, bulletSpeed: 9, rarity: 'rare', automatic: true },
       SHOTGUN: { name: "Shotgun", fireRate: 1000, bulletsPerShot: 3, spread: 0.25, damage: 8, bulletSpeed: 7, rarity: 'rare' },
       RPG: { name: "RPG", fireRate: 1500, bulletsPerShot: 1, spread: 0, damage: 30, bulletSpeed: 5, rarity: 'legendary', explosive: true, explosionRadius: 50 },
-      SHOT47: { name: "Shot-47", fireRate: 150, bulletsPerShot: 3, spread: 0.15, damage: 10, bulletSpeed: 8, rarity: 'rare', automatic: true } // new combined gun
+      SHOT47: { name: "Shot-47", fireRate: 150, bulletsPerShot: 3, spread: 0.15, damage: 10, bulletSpeed: 8, rarity: 'rare', automatic: true },
+      CANNON: { name: "Cannon", fireRate: 3000, bulletsPerShot: 0, spread: 0, damage: 20, bulletSpeed: 10, rarity: 'rare', cannon: true }
     };
 
-    // Chug jugs config (same as original)
+    // Chug jugs config (unchanged)
     const CHUGJUGS = {
       SMALL: { name: 'Small', healHealth: 20, healShield: 10 },
       MEDIUM: { name: 'Medium', healHealth: 50, healShield: 25 },
       LARGE: { name: 'Large', healHealth: 100, healShield: 50 }
     };
 
-    // Weighted random gun selection helper updated with Shot-47
+    // Weighted random gun selection updated with Cannon
     function getRandomGun() {
       let roll = Math.random();
-      if (roll < 0.6) return GUNS.PISTOL;
-      else if (roll < 0.8) return GUNS.AK47;
-      else if (roll < 0.93) return GUNS.SHOTGUN;
-      else if (roll < 0.99) return GUNS.SHOT47;
+      if (roll < 0.55) return GUNS.PISTOL;
+      else if (roll < 0.75) return GUNS.AK47;
+      else if (roll < 0.90) return GUNS.SHOTGUN;
+      else if (roll < 0.97) return GUNS.SHOT47;
+      else if (roll < 0.99) return GUNS.CANNON;
       else return GUNS.RPG;
     }
 
-    // Random chug jug helper (same as original)
+    // Random chug jug helper (unchanged)
     function getRandomChugJug() {
       let roll = Math.random();
       if (roll < 0.6) return CHUGJUGS.SMALL;
@@ -133,7 +135,7 @@
       miningCooldown: 0,
     };
 
-    // Storm (same as original)
+    // Storm (unchanged)
     let storm = {
       x: 0,
       y: 0,
@@ -148,28 +150,26 @@
     const trees = [];
     const chests = [];
 
-    // Walls array with new property 'isBridge'
+    // Walls with isBridge property
     const walls = [];
 
-    // Enemies with shooting and building capabilities
+    // Enemies with shooting/building
     const enemies = [];
 
-    // Bullets fired by anyone
+    // Bullets for everyone
     const bullets = [];
 
-    // Explosions (for RPG and bombs)
+    // Explosions for RPG and bombs
     const explosions = [];
 
-    // Bomb projectiles (thrown bombs)
+    // Bomb projectiles
     const bombs = [];
 
-    // Water bodies: array of water zones (rivers and lakes)
+    // Water bodies and bridges
     const waterZones = [];
-
-    // Bridges - array paralleling water zones with bridge rectangles
     const bridges = [];
 
-    // Random chance for shooting
+    // Shooting control
     let shooting = false;
     window.addEventListener('keydown', e => {
       if (e.key.toLowerCase() === 'r') shooting = true;
@@ -190,7 +190,7 @@
       }
     });
 
-    // Collision helpers
+    // Collision helpers (unchanged)
     function rectCollision(a, b) {
       return (
         a.x < b.x + b.width &&
@@ -216,7 +216,6 @@
       return distance <= radius;
     }
 
-    // Is point inside any water zone except on a bridge? Used to apply damage
     function isInWaterNoBridge(x, y, width = 1, height = 1) {
       for (const br of bridges) {
         if (rectCollision({ x, y, width, height }, br)) return false;
@@ -227,7 +226,6 @@
       return false;
     }
 
-    // AI water avoidance check
     function isWaterBlocked(rect) {
       for (const br of bridges) {
         if (rectCollision(rect, br)) return false;
@@ -238,7 +236,6 @@
       return false;
     }
 
-    // Bullets damage walls and break them
     function damageWallAt(x, y, damage) {
       for (let i = 0; i < walls.length; i++) {
         const w = walls[i];
@@ -251,7 +248,6 @@
       return false;
     }
 
-    // Explosion damage
     function doExplosion(x, y, radius, damage, source) {
       let dx = player.x + player.width / 2 - x;
       let dy = player.y + player.height / 2 - y;
@@ -288,7 +284,6 @@
       explosions.push({ x, y, radius, alpha: 1, maxRadius: radius });
     }
 
-    // Apply damage to player with shield absorption
     function applyDamageToPlayer(amount) {
       if (player.shield >= amount) {
         player.shield -= amount;
@@ -300,7 +295,6 @@
       }
     }
 
-    // Place wall
     function placeWall() {
       if (player.inventory.walls <= 0) return;
       let wallWidth = 30;
@@ -321,7 +315,6 @@
           enemies.some(e => rectCollision(newWall, e)) ||
           rectCollision(newWall, { x: player.x, y: player.y, width: player.width, height: player.height });
 
-        // Check if placing wall on water edge - if so treat as a bridge (safe)
         const onWaterEdge = waterZones.some(water => {
           let touchingX = (wallRect.x + wallRect.width > water.x - 5 && wallRect.x < water.x + water.width + 5);
           let touchingY = (wallRect.y + wallRect.height > water.y - 5 && wallRect.y < water.y + water.height + 5);
@@ -342,7 +335,6 @@
       }
     }
 
-    // Add or update bridges array based on wall placement on water edge
     function addBridgeForWall(wall) {
       waterZones.forEach(water => {
         let nearX = (wall.x + wall.width > water.x - 10 && wall.x < water.x + water.width + 10);
@@ -359,7 +351,6 @@
       });
     }
 
-    // Throw bomb
     function throwBomb() {
       if (player.inventory.bombs <= 0) return;
       const angle = player.direction;
@@ -376,7 +367,6 @@
       player.inventory.bombs--;
     }
 
-    // Use chug jug
     function useChugJug() {
       let c = player.inventory.chugjug;
       if (!c) return;
@@ -387,33 +377,73 @@
       player.inventory.chugjug = null;
     }
 
-    // Shoot gun function (player or enemy)
+    // Modified shootGun for cannon special behavior:
     function shootGun(shooter, gun, who) {
       if (!shooter || !gun) return;
       const angle = shooter.direction;
       const originX = shooter.x + (shooter.width ? shooter.width / 2 : 15);
       const originY = shooter.y + (shooter.height ? shooter.height / 2 : 15);
 
-      for (let i = 0; i < gun.bulletsPerShot; i++) {
-        let spreadAngle = angle;
-        if (gun.bulletsPerShot > 1) {
-          spreadAngle = angle + (i - Math.floor(gun.bulletsPerShot / 2)) * gun.spread;
+      if (gun.cannon) {
+        if (who === 'player') {
+          // Player cannon shoots all ammo bullets at once in a spread from angle
+          let ammoCount = shooter.inventory.ammo;
+          if (ammoCount <= 0) return;
+          let totalBullets = ammoCount;
+          // Spread bullets evenly in [-spreadRange, +spreadRange]
+          const spreadRange = 1; // radians (~57 deg)
+          for (let i = 0; i < totalBullets; i++) {
+            let spreadAngle = angle - spreadRange / 2 + (spreadRange * i) / (totalBullets - 1);
+            bullets.push({
+              x: originX + Math.cos(spreadAngle) * 20,
+              y: originY + Math.sin(spreadAngle) * 20,
+              vx: Math.cos(spreadAngle) * gun.bulletSpeed,
+              vy: Math.sin(spreadAngle) * gun.bulletSpeed,
+              radius: 5,
+              damage: gun.damage,
+              shooter: who,
+              explosive: false,
+              explosionRadius: 0
+            });
+          }
+          shooter.inventory.ammo = 0; // All ammo consumed
+        } else if (who === 'enemy') {
+          // Enemy cannon shoots a single slow big bullet
+          bullets.push({
+            x: originX + Math.cos(angle) * 20,
+            y: originY + Math.sin(angle) * 20,
+            vx: Math.cos(angle) * 3, // slow speed
+            vy: Math.sin(angle) * 3,
+            radius: 15,
+            damage: gun.damage,
+            shooter: who,
+            explosive: false,
+            explosionRadius: 0,
+            bigBullet: true
+          });
         }
-        bullets.push({
-          x: originX + Math.cos(spreadAngle) * 20,
-          y: originY + Math.sin(spreadAngle) * 20,
-          vx: Math.cos(spreadAngle) * gun.bulletSpeed,
-          vy: Math.sin(spreadAngle) * gun.bulletSpeed,
-          radius: 5,
-          damage: gun.damage,
-          shooter: who,
-          explosive: gun.explosive || false,
-          explosionRadius: gun.explosionRadius || 0
-        });
+      } else {
+        // Normal gun shooting, iterate bulletsPerShot
+        for (let i = 0; i < gun.bulletsPerShot; i++) {
+          let spreadAngle = angle;
+          if (gun.bulletsPerShot > 1) {
+            spreadAngle = angle + (i - Math.floor(gun.bulletsPerShot / 2)) * gun.spread;
+          }
+          bullets.push({
+            x: originX + Math.cos(spreadAngle) * 20,
+            y: originY + Math.sin(spreadAngle) * 20,
+            vx: Math.cos(spreadAngle) * gun.bulletSpeed,
+            vy: Math.sin(spreadAngle) * gun.bulletSpeed,
+            radius: 5,
+            damage: gun.damage,
+            shooter: who,
+            explosive: gun.explosive || false,
+            explosionRadius: gun.explosionRadius || 0
+          });
+        }
       }
     }
 
-    // Check player picking chests
     function checkChestPickup() {
       chests.forEach(c => {
         if (!c.opened) {
@@ -458,7 +488,7 @@
       });
     }
 
-    // GAME WATER GENERATION BEFORE GAME START
+    /******* Water and bridges generation as before *******/
     function generateWaterZones() {
       if (Math.random() < 0.4) {
         return;
@@ -547,7 +577,6 @@
         }
       }
     }
-
     generateWaterZones();
 
     // Helper to find a spawn location not in water for enemies
@@ -635,7 +664,8 @@
         inventory: {
           walls: Infinity,
           ammo: Infinity,
-          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG, GUNS.SHOT47][randomInt(0, 5)] // include Shot-47
+          // Include Cannon in enemy guns
+          gun: [GUNS.PISTOL, GUNS.AK47, GUNS.SHOTGUN, GUNS.RPG, GUNS.SHOT47, GUNS.CANNON][randomInt(0, 6)]
         },
         moveTimer: 0,
         targetPos: null,
@@ -643,7 +673,7 @@
       });
     }
 
-    // Player & AI update
+    // Update function
     function update() {
       let dx = 0, dy = 0;
       if (keys['w'] || keys['arrowup']) dy -= 1;
@@ -687,14 +717,17 @@
         applyDamageToPlayer(WATER_DAMAGE);
       }
 
+      // Update bullets
       for (let i = bullets.length - 1; i >= 0; i--) {
         let b = bullets[i];
         b.x += b.vx;
         b.y += b.vy;
+        // Remove offscreen bullets
         if (b.x < 0 || b.x > GAME_WIDTH || b.y < 0 || b.y > GAME_HEIGHT) {
           bullets.splice(i, 1);
           continue;
         }
+        // Bullet hits wall
         if (damageWallAt(b.x, b.y, b.damage)) {
           bullets.splice(i, 1);
           continue;
@@ -720,6 +753,7 @@
         }
       }
 
+      // Update bombs as before
       for (let i = bombs.length - 1; i >= 0; i--) {
         let bomb = bombs[i];
         bomb.x += bomb.vx;
@@ -734,6 +768,7 @@
         }
       }
 
+      // Explosions update
       for (let i = explosions.length - 1; i >= 0; i--) {
         let e = explosions[i];
         e.alpha -= 0.03;
@@ -741,6 +776,7 @@
         if (e.alpha <= 0) explosions.splice(i, 1);
       }
 
+      // Enemies AI update (including cannon shooting)
       enemies.forEach(e => {
         e.moveTimer = (e.moveTimer || 0) + 1;
 
@@ -872,7 +908,10 @@
           shootGun(player, player.inventory.gun, 'player');
           player.canShoot = false;
           player.lastShot = Date.now();
-          if (player.inventory.ammo !== Infinity) player.inventory.ammo--;
+          if (player.inventory.ammo !== Infinity) {
+            // For Cannon, ammo is zeroed inside shootGun; for others just reduce by 1 per shot
+            if (!player.inventory.gun.cannon) player.inventory.ammo--;
+          }
         } else if (Date.now() - player.lastShot > player.inventory.gun.fireRate) {
           player.canShoot = true;
         }
@@ -900,7 +939,7 @@
       }
     }
 
-    // Draw all elements
+    // Drawing functions (modified bullet draw to distinguish cannon big bullets)
     function draw() {
       ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
@@ -963,9 +1002,18 @@
 
       bullets.forEach(b => {
         ctx.beginPath();
-        ctx.fillStyle = b.explosive ? 'orange' : 'black';
-        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (b.bigBullet) {
+          ctx.fillStyle = 'purple';
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'black';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = b.explosive ? 'orange' : 'black';
+          ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
       });
 
       bombs.forEach(bomb => {
